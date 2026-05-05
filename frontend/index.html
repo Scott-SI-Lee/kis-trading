@@ -1,0 +1,1663 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KIS 자동매매 대시보드</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Pretendard:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0d12;
+    --surface: #111620;
+    --surface2: #181f2e;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.14);
+    --text: #e8edf5;
+    --muted: #6b7a99;
+    --accent: #3b82f6;
+    --accent-dim: rgba(59,130,246,0.15);
+    --green: #22c55e;
+    --green-dim: rgba(34,197,94,0.12);
+    --red: #ef4444;
+    --red-dim: rgba(239,68,68,0.12);
+    --yellow: #f59e0b;
+    --yellow-dim: rgba(245,158,11,0.12);
+    --font: 'Pretendard', -apple-system, sans-serif;
+    --mono: 'JetBrains Mono', monospace;
+    --r: 10px;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:var(--font); font-size:14px; min-height:100vh; }
+  
+  /* 레이아웃 */
+  .shell { display:grid; grid-template-columns:240px 1fr; grid-template-rows:56px 1fr; min-height:100vh; }
+  
+  /* 헤더 */
+  header {
+    grid-column:1/-1;
+    background:var(--surface);
+    border-bottom:1px solid var(--border);
+    display:flex; align-items:center; justify-content:space-between;
+    padding:0 20px; gap:16px;
+  }
+  .logo { font-family:var(--mono); font-size:15px; font-weight:500; color:var(--accent); letter-spacing:-0.5px; }
+  .logo span { color:var(--muted); }
+  .header-status { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); }
+  .dot { width:7px; height:7px; border-radius:50%; background:var(--muted); }
+  .dot.live { background:var(--green); box-shadow:0 0 6px var(--green); animation:pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+  .header-time { font-family:var(--mono); font-size:13px; color:var(--muted); }
+  
+  /* 사이드바 */
+  nav {
+    background:var(--surface);
+    border-right:1px solid var(--border);
+    padding:16px 0; display:flex; flex-direction:column; gap:2px;
+  }
+  .nav-section { padding:8px 16px 4px; font-size:11px; color:var(--muted); font-weight:500; letter-spacing:0.05em; text-transform:uppercase; }
+  .nav-item {
+    margin:0 8px; padding:8px 12px; border-radius:var(--r); cursor:pointer;
+    display:flex; align-items:center; gap:10px; color:var(--muted);
+    transition:all .15s; font-size:13px; border:none; background:none; width:calc(100% - 16px); text-align:left;
+  }
+  .nav-item:hover { background:var(--surface2); color:var(--text); }
+  .nav-item.active { background:var(--accent-dim); color:var(--accent); }
+  .nav-icon { font-size:15px; width:18px; text-align:center; }
+  
+  /* 메인 */
+  main { overflow:auto; padding:20px; display:flex; flex-direction:column; gap:16px; }
+  
+  /* 섹션 패널 */
+  .panel {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:var(--r); overflow:hidden;
+  }
+  .panel-header {
+    padding:12px 16px; border-bottom:1px solid var(--border);
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .panel-title { font-size:13px; font-weight:500; color:var(--text); }
+  .panel-body { padding:16px; }
+  
+  /* 메트릭 카드 그리드 */
+  .metric-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+  .metric-card {
+    background:var(--surface2); border:1px solid var(--border);
+    border-radius:var(--r); padding:14px 16px;
+  }
+  .metric-label { font-size:11px; color:var(--muted); margin-bottom:6px; font-weight:500; letter-spacing:0.03em; }
+  .metric-value { font-size:22px; font-weight:600; font-family:var(--mono); }
+  .metric-sub { font-size:12px; margin-top:4px; font-family:var(--mono); }
+  .up { color:var(--green); }
+  .down { color:var(--red); }
+  .neutral { color:var(--muted); }
+  
+  /* 차트 영역 */
+  .chart-wrap { position:relative; width:100%; height:260px; }
+  
+  /* 폼 그리드 */
+  .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .form-group { display:flex; flex-direction:column; gap:6px; }
+  .form-label { font-size:12px; color:var(--muted); font-weight:500; }
+  .form-input {
+    background:var(--surface2); border:1px solid var(--border2);
+    border-radius:8px; padding:8px 12px; color:var(--text);
+    font-family:var(--mono); font-size:13px; outline:none;
+    transition:border-color .15s;
+  }
+  .form-input:focus { border-color:var(--accent); }
+  .form-full { grid-column:1/-1; }
+  
+  /* 버튼 */
+  .btn {
+    padding:9px 18px; border-radius:8px; border:none; cursor:pointer;
+    font-size:13px; font-weight:500; transition:all .15s; font-family:var(--font);
+  }
+  .btn-primary { background:var(--accent); color:#fff; }
+  .btn-primary:hover { filter:brightness(1.1); }
+  .btn-success { background:var(--green-dim); color:var(--green); border:1px solid rgba(34,197,94,0.25); }
+  .btn-danger  { background:var(--red-dim);   color:var(--red);   border:1px solid rgba(239,68,68,0.25); }
+  .btn-outline { background:transparent; color:var(--muted); border:1px solid var(--border2); }
+  .btn-outline:hover { color:var(--text); border-color:var(--border2); background:var(--surface2); }
+  .btn-group { display:flex; gap:8px; flex-wrap:wrap; }
+  
+  /* 배지 */
+  .badge { display:inline-flex; align-items:center; padding:2px 8px; border-radius:20px; font-size:11px; font-weight:500; }
+  .badge-buy  { background:var(--green-dim); color:var(--green); }
+  .badge-sell { background:var(--red-dim);   color:var(--red); }
+  .badge-hold { background:var(--yellow-dim); color:var(--yellow); }
+  .badge-live { background:var(--accent-dim); color:var(--accent); }
+  
+  /* 테이블 */
+  .data-table { width:100%; border-collapse:collapse; font-size:13px; }
+  .data-table th { padding:8px 12px; color:var(--muted); font-weight:500; text-align:left; font-size:11px; letter-spacing:0.03em; border-bottom:1px solid var(--border); }
+  .data-table td { padding:10px 12px; border-bottom:1px solid var(--border); font-family:var(--mono); }
+  .data-table tr:last-child td { border-bottom:none; }
+  .data-table tr:hover td { background:var(--surface2); }
+  
+  /* 전략 패널 */
+  .strategy-status {
+    background:var(--surface2); border:1px solid var(--border); border-radius:var(--r);
+    padding:12px 16px; display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;
+  }
+  .strategy-info { display:flex; flex-direction:column; gap:4px; }
+  .strategy-name { font-weight:500; font-size:14px; }
+  .strategy-detail { font-size:12px; color:var(--muted); font-family:var(--mono); }
+  
+  /* MA 차트 범례 */
+  .chart-legend { display:flex; gap:16px; margin-bottom:8px; }
+  .legend-item { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); }
+  .legend-line { width:20px; height:2px; border-radius:2px; }
+  
+  /* 로그 스트림 */
+  .log-stream {
+    background:var(--bg); border-radius:8px; padding:12px;
+    height:200px; overflow-y:auto; font-family:var(--mono); font-size:12px;
+    display:flex; flex-direction:column; gap:4px;
+  }
+  .log-line { display:flex; gap:10px; }
+  .log-time { color:var(--muted); flex-shrink:0; }
+  .log-buy  { color:var(--green); }
+  .log-sell { color:var(--red); }
+  .log-hold { color:var(--muted); }
+  .log-err  { color:var(--red); }
+  
+  /* 알림 토스트 */
+  #toast-container { position:fixed; bottom:20px; right:20px; display:flex; flex-direction:column; gap:8px; z-index:999; }
+  .toast {
+    background:var(--surface); border:1px solid var(--border2); border-radius:var(--r);
+    padding:12px 16px; font-size:13px; min-width:240px;
+    animation:slide-in .25s ease;
+  }
+  @keyframes slide-in { from{transform:translateX(20px);opacity:0} to{transform:translateX(0);opacity:1} }
+  
+  /* 인증 화면 오버레이 */
+  #auth-overlay {
+    position:fixed; inset:0; background:rgba(0,0,0,0.7);
+    display:flex; align-items:center; justify-content:center; z-index:100; backdrop-filter:blur(4px);
+  }
+  .auth-card {
+    background:var(--surface); border:1px solid var(--border2); border-radius:16px;
+    padding:32px; width:420px; display:flex; flex-direction:column; gap:20px;
+  }
+  .auth-title { font-size:18px; font-weight:600; }
+  .auth-subtitle { font-size:13px; color:var(--muted); margin-top:-12px; }
+  
+  /* 반응형 */
+  .two-col { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  
+  /* 탭 */
+  .page { display:none; }
+  .page.active { display:block; }
+  
+  /* 검색 드롭다운 */
+  .search-item {
+    padding:10px 14px; cursor:pointer; display:flex; align-items:center;
+    gap:10px; border-bottom:1px solid var(--border); transition:background .1s;
+  }
+  .search-item:last-child { border-bottom:none; }
+  .search-item:hover, .search-item.active { background:var(--surface2); }
+  .search-code { font-family:var(--mono); font-size:12px; color:var(--accent);
+    background:var(--accent-dim); padding:1px 7px; border-radius:4px; flex-shrink:0; }
+  .search-name { font-size:13px; color:var(--text); }
+
+  /* 스크롤바 */
+  ::-webkit-scrollbar { width:4px; height:4px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:var(--border2); border-radius:4px; }
+</style>
+</head>
+<body>
+
+<div id="auth-overlay">
+  <div class="auth-card">
+    <div>
+      <div class="auth-title">🔐 한국투자증권 OpenAPI 연결</div>
+      <div class="auth-subtitle" style="margin-top:8px;">계좌를 선택하거나 직접 키를 입력하세요</div>
+    </div>
+
+    <!-- .env 계좌 카드 -->
+    <div id="env-accounts" style="display:none; flex-direction:column; gap:8px;">
+      <div style="font-size:12px; color:var(--muted); font-weight:500; letter-spacing:0.04em;">📁 .ENV 저장된 계좌</div>
+
+      <div id="env-mock-card" style="display:none; background:var(--surface2); border:1px solid var(--border2);
+           border-radius:10px; padding:14px; cursor:pointer; transition:border-color .15s;"
+           onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border2)'"
+           onclick="connectFromEnv('mock')">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <div style="font-size:13px; font-weight:500;">🟡 모의투자 계좌</div>
+            <div id="env-mock-account" style="font-size:12px; color:var(--muted); font-family:var(--mono); margin-top:3px;"></div>
+            <div id="env-mock-key" style="font-size:11px; color:var(--muted); margin-top:2px;"></div>
+          </div>
+          <span style="font-size:20px;">→</span>
+        </div>
+      </div>
+
+      <div id="env-real-card" style="display:none; background:var(--surface2); border:1px solid rgba(239,68,68,0.3);
+           border-radius:10px; padding:14px; cursor:pointer; transition:border-color .15s;"
+           onmouseover="this.style.borderColor='var(--red)'" onmouseout="this.style.borderColor='rgba(239,68,68,0.3)'"
+           onclick="connectFromEnv('real')">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <div style="font-size:13px; font-weight:500; color:var(--red);">🔴 실전투자 계좌</div>
+            <div id="env-real-account" style="font-size:12px; color:var(--muted); font-family:var(--mono); margin-top:3px;"></div>
+            <div id="env-real-key" style="font-size:11px; color:var(--muted); margin-top:2px;"></div>
+            <div style="font-size:11px; color:var(--red); margin-top:4px;">⚠️ 실제 자금이 거래됩니다</div>
+          </div>
+          <span style="font-size:20px;">→</span>
+        </div>
+      </div>
+
+      <div style="display:flex; align-items:center; gap:8px; margin:4px 0;">
+        <div style="flex:1; height:1px; background:var(--border);"></div>
+        <span style="font-size:11px; color:var(--muted);">또는 직접 입력</span>
+        <div style="flex:1; height:1px; background:var(--border);"></div>
+      </div>
+    </div>
+
+    <!-- 수동 입력 -->
+    <div class="form-grid" id="manual-auth-form">
+      <div class="form-group form-full">
+        <label class="form-label">APP KEY</label>
+        <input class="form-input" id="inp-appkey" placeholder="PSxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+      </div>
+      <div class="form-group form-full">
+        <label class="form-label">APP SECRET</label>
+        <input class="form-input" id="inp-appsecret" type="password" placeholder="App Secret Key" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">계좌번호</label>
+        <input class="form-input" id="inp-account" placeholder="50123456-01" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">환경</label>
+        <select class="form-input" id="inp-mock">
+          <option value="true">모의투자</option>
+          <option value="false">실전투자</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="authenticate()" style="width:100%; padding:12px;">연결하기</button>
+    <div style="text-align:center; font-size:12px; color:var(--muted);">
+      <a href="https://apiportal.koreainvestment.com" target="_blank" style="color:var(--accent); text-decoration:none;">KIS Developer Portal →</a>
+    </div>
+  </div>
+</div>
+
+<div class="shell">
+  <header>
+    <div class="logo">KIS<span>/</span>AUTO</div>
+    <div class="header-status">
+      <div class="dot live" id="conn-dot"></div>
+      <span id="conn-label">연결 대기중</span>
+    </div>
+    <div id="mode-switcher" style="display:none; align-items:center; gap:8px;">
+      <span style="font-size:12px; color:var(--muted);">계좌:</span>
+      <button id="btn-mock" onclick="switchMode('mock')"
+        style="padding:4px 12px; border-radius:20px; border:1px solid var(--border2);
+               background:var(--accent-dim); color:var(--accent); font-size:12px; cursor:pointer; font-family:var(--font);">
+        모의투자
+      </button>
+      <button id="btn-real" onclick="switchMode('real')"
+        style="padding:4px 12px; border-radius:20px; border:1px solid var(--border2);
+               background:transparent; color:var(--muted); font-size:12px; cursor:pointer; font-family:var(--font);">
+        실전투자
+      </button>
+    </div>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <div id="profile-badge" style="display:none; padding:2px 10px; border-radius:20px;
+           background:var(--surface2); border:1px solid var(--border2);
+           font-size:11px; font-family:var(--mono); color:var(--muted);">
+        ENV: <span id="profile-name">-</span>
+      </div>
+      <div class="header-time" id="clock">--:--:--</div>
+    </div>
+  </header>
+
+  <nav>
+    <div class="nav-section">메뉴</div>
+    <button class="nav-item active" onclick="showPage('dashboard',this)">
+      <span class="nav-icon">📊</span> 대시보드
+    </button>
+    <button class="nav-item" onclick="showPage('quote',this)">
+      <span class="nav-icon">📈</span> 시세 조회
+    </button>
+    <button class="nav-item" onclick="showPage('order',this)">
+      <span class="nav-icon">💸</span> 수동 주문
+    </button>
+    <button class="nav-item" onclick="showPage('strategy',this)">
+      <span class="nav-icon">🤖</span> 자동매매
+    </button>
+    <button class="nav-item" onclick="showPage('screener',this)">
+      <span class="nav-icon">🔍</span> 종목 스크리너
+    </button>
+    <div class="nav-section" style="margin-top:auto;">계좌</div>
+    <button class="nav-item" onclick="showPage('balance',this)">
+      <span class="nav-icon">💼</span> 잔고 / 포지션
+    </button>
+    <button class="nav-item" onclick="showPage('orders-hist',this)">
+      <span class="nav-icon">📋</span> 주문 내역
+    </button>
+  </nav>
+
+  <main>
+
+    <!-- ══ 대시보드 ══ -->
+    <div id="page-dashboard" class="page active">
+      <div class="metric-grid" id="balance-metrics">
+        <div class="metric-card">
+          <div class="metric-label">총 평가금액</div>
+          <div class="metric-value" id="m-total">-</div>
+          <div class="metric-sub neutral" id="m-profit">손익 계산중</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">예수금</div>
+          <div class="metric-value" id="m-cash">-</div>
+          <div class="metric-sub neutral">주문가능금액</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">매입금액</div>
+          <div class="metric-value" id="m-purchase">-</div>
+          <div class="metric-sub neutral">보유 종목</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">자동매매 상태</div>
+          <div class="metric-value" id="m-bot">대기</div>
+          <div class="metric-sub neutral" id="m-bot-symbol">-</div>
+        </div>
+      </div>
+
+      <div class="two-col" style="margin-top:16px;">
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">보유 종목</span>
+            <button class="btn btn-outline" onclick="loadPositions()" style="padding:4px 10px; font-size:12px;">새로고침</button>
+          </div>
+          <div class="panel-body" style="padding:0;">
+            <table class="data-table" id="positions-table">
+              <thead><tr><th>종목</th><th>수량</th><th>평가손익</th><th>수익률</th></tr></thead>
+              <tbody id="positions-body">
+                <tr><td colspan="4" style="text-align:center; color:var(--muted); padding:24px;">인증 후 조회됩니다</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">전략 로그</span></div>
+          <div class="panel-body" style="padding:12px;">
+            <div class="log-stream" id="strategy-log-dash">
+              <div class="log-line"><span class="log-hold">자동매매 전략을 시작하면 여기에 로그가 출력됩니다.</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ 시세 조회 ══ -->
+    <div id="page-quote" class="page">
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">종목 시세</span>
+          <div style="display:flex; gap:8px; align-items:center; position:relative;">
+            <div style="position:relative;">
+              <input class="form-input" id="quote-search"
+                placeholder="종목명 또는 코드 (예: 삼성전자, 005930)"
+                style="width:260px; padding:6px 12px;"
+                oninput="onSearchInput(this.value)"
+                onkeydown="onSearchKeydown(event)"
+                autocomplete="off" />
+              <!-- 자동완성 드롭다운 -->
+              <div id="search-dropdown" style="
+                display:none; position:absolute; top:calc(100% + 4px); left:0; right:0;
+                background:var(--surface); border:1px solid var(--border2); border-radius:8px;
+                z-index:50; overflow:hidden; box-shadow:0 8px 24px rgba(0,0,0,0.4);">
+              </div>
+            </div>
+            <!-- 선택된 종목 뱃지 -->
+            <div id="selected-stock" style="display:none; align-items:center; gap:6px;">
+              <span class="badge badge-live" id="selected-code" style="font-family:var(--mono); font-size:12px;"></span>
+              <span style="font-size:13px; color:var(--muted);" id="selected-name"></span>
+            </div>
+            <input type="hidden" id="quote-symbol" />
+            <button class="btn btn-primary" onclick="loadQuote()" style="padding:6px 14px;">조회</button>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="metric-grid" style="grid-template-columns:repeat(5,1fr); margin-bottom:16px;" id="quote-metrics">
+            <div class="metric-card"><div class="metric-label">현재가</div><div class="metric-value" id="q-price">-</div></div>
+            <div class="metric-card"><div class="metric-label">전일대비</div><div class="metric-value" id="q-change">-</div></div>
+            <div class="metric-card"><div class="metric-label">등락률</div><div class="metric-value" id="q-pct">-</div></div>
+            <div class="metric-card"><div class="metric-label">거래량</div><div class="metric-value" id="q-vol">-</div></div>
+            <div class="metric-card"><div class="metric-label">고가/저가</div><div class="metric-value" id="q-hl">-</div></div>
+          </div>
+          <div class="chart-legend">
+            <div class="legend-item"><div class="legend-line" style="background:#ef4444;"></div>종가</div>
+            <div class="legend-item"><div class="legend-line" style="background:#3b82f6; border-top:2px dashed #3b82f6;"></div>단기MA</div>
+            <div class="legend-item"><div class="legend-line" style="background:#f59e0b; border-top:2px dashed #f59e0b;"></div>장기MA</div>
+          </div>
+          <div class="chart-wrap"><canvas id="priceChart" role="img" aria-label="주가 캔들 차트">주가 차트</canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ 수동 주문 ══ -->
+    <div id="page-order" class="page">
+      <div class="panel" style="max-width:480px;">
+        <div class="panel-header"><span class="panel-title">주문 입력</span></div>
+        <div class="panel-body">
+          <div class="form-grid">
+            <div class="form-group form-full">
+              <label class="form-label">종목코드</label>
+              <input class="form-input" id="ord-symbol" placeholder="005930 (삼성전자)" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">구분</label>
+              <select class="form-input" id="ord-side">
+                <option value="BUY">매수</option>
+                <option value="SELL">매도</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">수량</label>
+              <input class="form-input" id="ord-qty" type="number" min="1" value="1" />
+            </div>
+            <div class="form-group form-full">
+              <label class="form-label">주문가격 (0 = 시장가)</label>
+              <input class="form-input" id="ord-price" type="number" min="0" value="0" />
+            </div>
+          </div>
+          <div class="btn-group" style="margin-top:16px;">
+            <button class="btn btn-success" onclick="placeOrder('BUY')" style="flex:1;">매수 주문</button>
+            <button class="btn btn-danger" onclick="placeOrder('SELL')" style="flex:1;">매도 주문</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:16px;">
+        <div class="panel-header">
+          <span class="panel-title">체결 내역</span>
+          <button class="btn btn-outline" onclick="loadOrders()" style="padding:4px 10px; font-size:12px;">새로고침</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table class="data-table">
+            <thead><tr><th>주문번호</th><th>종목</th><th>구분</th><th>수량</th><th>가격</th><th>시간</th></tr></thead>
+            <tbody id="orders-body">
+              <tr><td colspan="6" style="text-align:center; color:var(--muted); padding:24px;">주문 내역 없음</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ 자동매매 전략 ══ -->
+    <div id="page-strategy" class="page">
+      <div class="two-col">
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">전략 설정</span></div>
+          <div class="panel-body">
+            <div class="strategy-status" id="strat-status-bar">
+              <div class="strategy-info">
+                <div class="strategy-name" id="strat-name">대기중</div>
+                <div class="strategy-detail" id="strat-detail">전략이 실행되지 않았습니다</div>
+              </div>
+              <div class="badge badge-hold" id="strat-badge">STOPPED</div>
+            </div>
+            <div class="form-grid">
+              <div class="form-group form-full">
+                <label class="form-label">전략 선택</label>
+                <select class="form-input" id="strat-type" onchange="onStrategyChange()">
+                  <option value="golden_cross">📈 골든크로스 (이동평균 크로스)</option>
+                  <option value="rsi">📊 RSI (과매수/과매도)</option>
+                  <option value="bollinger">〰️ 볼린저밴드 (밴드 돌파)</option>
+                  <option value="macd">🔀 MACD (시그널 크로스)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">종목코드</label>
+                <input class="form-input" id="strat-symbol" placeholder="005930" value="005930" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">매매 수량</label>
+                <input class="form-input" id="strat-qty" type="number" value="1" min="1" />
+              </div>
+              <div class="form-group form-full">
+                <label class="form-label">체크 주기 (초)</label>
+                <input class="form-input" id="strat-interval" type="number" value="60" min="10" />
+              </div>
+            </div>
+
+            <!-- 골든크로스 파라미터 -->
+            <div id="params-golden_cross" class="strat-params form-grid" style="margin-top:12px;">
+              <div class="form-group">
+                <label class="form-label">단기 이평 (일)</label>
+                <input class="form-input" id="strat-short" type="number" value="5" min="1" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">장기 이평 (일)</label>
+                <input class="form-input" id="strat-long" type="number" value="20" min="1" />
+              </div>
+            </div>
+
+            <!-- RSI 파라미터 -->
+            <div id="params-rsi" class="strat-params form-grid" style="margin-top:12px; display:none;">
+              <div class="form-group">
+                <label class="form-label">RSI 기간</label>
+                <input class="form-input" id="strat-rsi-period" type="number" value="14" min="2" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">과매도 기준</label>
+                <input class="form-input" id="strat-oversold" type="number" value="30" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">과매수 기준</label>
+                <input class="form-input" id="strat-overbought" type="number" value="70" />
+              </div>
+            </div>
+
+            <!-- 볼린저밴드 파라미터 -->
+            <div id="params-bollinger" class="strat-params form-grid" style="margin-top:12px; display:none;">
+              <div class="form-group">
+                <label class="form-label">기간 (일)</label>
+                <input class="form-input" id="strat-bb-period" type="number" value="20" min="2" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">표준편차 배수 (k)</label>
+                <input class="form-input" id="strat-bb-k" type="number" value="2" step="0.1" />
+              </div>
+            </div>
+
+            <!-- MACD 파라미터 -->
+            <div id="params-macd" class="strat-params form-grid" style="margin-top:12px; display:none;">
+              <div class="form-group">
+                <label class="form-label">단기 EMA</label>
+                <input class="form-input" id="strat-macd-fast" type="number" value="12" min="1" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">장기 EMA</label>
+                <input class="form-input" id="strat-macd-slow" type="number" value="26" min="1" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">시그널 기간</label>
+                <input class="form-input" id="strat-macd-signal" type="number" value="9" min="1" />
+              </div>
+            </div>
+
+            <div class="btn-group" style="margin-top:16px;">
+              <button class="btn btn-success" onclick="startStrategy()" style="flex:1;">▶ 시작</button>
+              <button class="btn btn-danger" onclick="stopStrategy()" style="flex:1;">■ 중지</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">전략 설명</span></div>
+          <div class="panel-body" style="display:flex; flex-direction:column; gap:10px;">
+            <div style="background:var(--surface2); border-radius:8px; padding:14px;">
+              <div style="font-size:13px; font-weight:500; margin-bottom:8px;">📈 골든크로스</div>
+              <div style="font-size:12px; color:var(--muted); line-height:1.7;">단기MA가 장기MA를 <strong style="color:var(--green)">상향돌파</strong> → 매수<br>단기MA가 장기MA를 <strong style="color:var(--red)">하향돌파</strong> → 매도</div>
+            </div>
+            <div style="background:var(--surface2); border-radius:8px; padding:14px;">
+              <div style="font-size:13px; font-weight:500; margin-bottom:8px;">📊 RSI</div>
+              <div style="font-size:12px; color:var(--muted); line-height:1.7;">RSI ≤ 30 (과매도) → <strong style="color:var(--green)">매수</strong><br>RSI ≥ 70 (과매수) → <strong style="color:var(--red)">매도</strong></div>
+            </div>
+            <div style="background:var(--surface2); border-radius:8px; padding:14px;">
+              <div style="font-size:13px; font-weight:500; margin-bottom:8px;">〰️ 볼린저밴드</div>
+              <div style="font-size:12px; color:var(--muted); line-height:1.7;">종가가 하단밴드 이탈 → <strong style="color:var(--green)">매수</strong><br>종가가 상단밴드 돌파 → <strong style="color:var(--red)">매도</strong></div>
+            </div>
+            <div style="background:var(--surface2); border-radius:8px; padding:14px;">
+              <div style="font-size:13px; font-weight:500; margin-bottom:8px;">🔀 MACD</div>
+              <div style="font-size:12px; color:var(--muted); line-height:1.7;">MACD가 Signal을 <strong style="color:var(--green)">상향돌파</strong> → 매수<br>MACD가 Signal을 <strong style="color:var(--red)">하향돌파</strong> → 매도</div>
+            </div>
+            <div style="background:var(--yellow-dim); border:1px solid rgba(245,158,11,0.2); border-radius:8px; padding:12px;">
+              <div style="font-size:12px; color:var(--muted); line-height:1.8;">
+                ⚠️ <strong style="color:var(--yellow)">모의투자</strong>로 먼저 테스트하세요<br>
+                📌 포지션 없을 때만 매수, 보유 중일 때만 매도<br>
+                🔄 전략 로그는 최대 200건 보관
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:16px;">
+        <div class="panel-header">
+          <span class="panel-title">실시간 전략 로그</span>
+          <button class="btn btn-outline" onclick="loadStrategyLog()" style="padding:4px 10px; font-size:12px;">새로고침</button>
+        </div>
+        <div class="panel-body" style="padding:12px;">
+          <div class="log-stream" style="height:280px;" id="strategy-log-full">
+            <div class="log-line"><span class="log-hold">전략 로그가 여기에 표시됩니다.</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ 잔고/포지션 ══ -->
+    <div id="page-balance" class="page">
+      <div class="metric-grid" style="margin-bottom:16px;">
+        <div class="metric-card">
+          <div class="metric-label">총 평가금액</div>
+          <div class="metric-value" id="b-total">-</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">총 매입금액</div>
+          <div class="metric-value" id="b-purchase">-</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">평가손익</div>
+          <div class="metric-value" id="b-profit">-</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">예수금</div>
+          <div class="metric-value" id="b-cash">-</div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">보유 포지션</span>
+          <button class="btn btn-outline" onclick="loadBalance()" style="padding:4px 10px; font-size:12px;">새로고침</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table class="data-table">
+            <thead><tr><th>종목코드</th><th>종목명</th><th>수량</th><th>평균단가</th><th>현재가</th><th>평가손익</th><th>수익률</th></tr></thead>
+            <tbody id="balance-positions-body">
+              <tr><td colspan="7" style="text-align:center; color:var(--muted); padding:24px;">인증 후 조회됩니다</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ 주문 내역 ══ -->
+    <div id="page-orders-hist" class="page">
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">주문 내역</span>
+          <button class="btn btn-outline" onclick="loadOrders()" style="padding:4px 10px; font-size:12px;">새로고침</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table class="data-table">
+            <thead><tr><th>주문번호</th><th>종목</th><th>구분</th><th>수량</th><th>가격</th><th>시간</th></tr></thead>
+            <tbody id="orders-hist-body">
+              <tr><td colspan="6" style="text-align:center; color:var(--muted); padding:24px;">주문 내역 없음</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ 종목 스크리너 ══ -->
+    <div id="page-screener" class="page">
+      <div class="two-col" style="align-items:start;">
+
+        <!-- 조건 설정 패널 -->
+        <div style="display:flex; flex-direction:column; gap:12px;">
+
+          <div class="panel">
+            <div class="panel-header"><span class="panel-title">스크리닝 범위</span></div>
+            <div class="panel-body">
+              <div class="form-group">
+                <label class="form-label">대상 유니버스</label>
+                <select class="form-input" id="sc-universe">
+                  <option value="all">KOSPI200 + KOSDAQ150 전체</option>
+                  <option value="kospi200">KOSPI200만</option>
+                  <option value="kosdaq150">KOSDAQ150만</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- RSI -->
+          <div class="panel">
+            <div class="panel-header" style="cursor:pointer;" onclick="toggleCond('rsi')">
+              <span class="panel-title">📊 RSI 조건</span>
+              <input type="checkbox" id="use-rsi" style="width:16px;height:16px;cursor:pointer;" onclick="event.stopPropagation(); toggleCond('rsi', this.checked)">
+            </div>
+            <div id="cond-rsi" class="panel-body" style="display:none;">
+              <div class="form-grid">
+                <div class="form-group">
+                  <label class="form-label">RSI 기간</label>
+                  <input class="form-input" id="sc-rsi-period" type="number" value="14" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">RSI 상한 (이하)</label>
+                  <input class="form-input" id="sc-rsi-min" type="number" placeholder="예: 30 (과매도)" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">RSI 하한 (이상)</label>
+                  <input class="form-input" id="sc-rsi-max" type="number" placeholder="예: 70 (과매수)" />
+                </div>
+              </div>
+              <div style="margin-top:8px; font-size:12px; color:var(--muted);">
+                💡 상한만 입력 → RSI ≤ 값인 종목 / 하한만 입력 → RSI ≥ 값인 종목
+              </div>
+            </div>
+          </div>
+
+          <!-- 볼린저밴드 -->
+          <div class="panel">
+            <div class="panel-header" style="cursor:pointer;" onclick="toggleCond('bollinger')">
+              <span class="panel-title">〰️ 볼린저밴드 조건</span>
+              <input type="checkbox" id="use-bollinger" style="width:16px;height:16px;cursor:pointer;" onclick="event.stopPropagation(); toggleCond('bollinger', this.checked)">
+            </div>
+            <div id="cond-bollinger" class="panel-body" style="display:none;">
+              <div class="form-grid">
+                <div class="form-group">
+                  <label class="form-label">기간</label>
+                  <input class="form-input" id="sc-bb-period" type="number" value="20" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">표준편차 배수(k)</label>
+                  <input class="form-input" id="sc-bb-k" type="number" value="2" step="0.1" />
+                </div>
+                <div class="form-group form-full">
+                  <label class="form-label">조건</label>
+                  <select class="form-input" id="sc-bb-position">
+                    <option value="below_lower">하단밴드 이탈 (매수 신호)</option>
+                    <option value="above_upper">상단밴드 돌파 (매도 신호)</option>
+                    <option value="inside">밴드 내부</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- MACD -->
+          <div class="panel">
+            <div class="panel-header" style="cursor:pointer;" onclick="toggleCond('macd')">
+              <span class="panel-title">🔀 MACD 조건</span>
+              <input type="checkbox" id="use-macd" style="width:16px;height:16px;cursor:pointer;" onclick="event.stopPropagation(); toggleCond('macd', this.checked)">
+            </div>
+            <div id="cond-macd" class="panel-body" style="display:none;">
+              <div class="form-grid">
+                <div class="form-group">
+                  <label class="form-label">단기 EMA</label>
+                  <input class="form-input" id="sc-macd-fast" type="number" value="12" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">장기 EMA</label>
+                  <input class="form-input" id="sc-macd-slow" type="number" value="26" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">시그널 기간</label>
+                  <input class="form-input" id="sc-macd-signal" type="number" value="9" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">크로스 방향</label>
+                  <select class="form-input" id="sc-macd-cross">
+                    <option value="golden">골든크로스 (MACD > Signal)</option>
+                    <option value="dead">데드크로스 (MACD < Signal)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 골든/데드크로스 -->
+          <div class="panel">
+            <div class="panel-header" style="cursor:pointer;" onclick="toggleCond('macross')">
+              <span class="panel-title">📈 이동평균 크로스</span>
+              <input type="checkbox" id="use-macross" style="width:16px;height:16px;cursor:pointer;" onclick="event.stopPropagation(); toggleCond('macross', this.checked)">
+            </div>
+            <div id="cond-macross" class="panel-body" style="display:none;">
+              <div class="form-grid">
+                <div class="form-group">
+                  <label class="form-label">단기 MA</label>
+                  <input class="form-input" id="sc-ma-short" type="number" value="5" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">장기 MA</label>
+                  <input class="form-input" id="sc-ma-long" type="number" value="20" />
+                </div>
+                <div class="form-group form-full">
+                  <label class="form-label">크로스 방향</label>
+                  <select class="form-input" id="sc-ma-cross">
+                    <option value="golden">골든크로스</option>
+                    <option value="dead">데드크로스</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 거래량 급증 -->
+          <div class="panel">
+            <div class="panel-header" style="cursor:pointer;" onclick="toggleCond('volume')">
+              <span class="panel-title">📦 거래량 급증</span>
+              <input type="checkbox" id="use-volume" style="width:16px;height:16px;cursor:pointer;" onclick="event.stopPropagation(); toggleCond('volume', this.checked)">
+            </div>
+            <div id="cond-volume" class="panel-body" style="display:none;">
+              <div class="form-grid">
+                <div class="form-group">
+                  <label class="form-label">급증 배율 (배 이상)</label>
+                  <input class="form-input" id="sc-vol-ratio" type="number" value="2" step="0.5" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">평균 산출 기간 (일)</label>
+                  <input class="form-input" id="sc-vol-days" type="number" value="20" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 등락률 -->
+          <div class="panel">
+            <div class="panel-header" style="cursor:pointer;" onclick="toggleCond('change')">
+              <span class="panel-title">📉 등락률 조건</span>
+              <input type="checkbox" id="use-change" style="width:16px;height:16px;cursor:pointer;" onclick="event.stopPropagation(); toggleCond('change', this.checked)">
+            </div>
+            <div id="cond-change" class="panel-body" style="display:none;">
+              <div class="form-grid">
+                <div class="form-group">
+                  <label class="form-label">등락률 최소 (% 이상)</label>
+                  <input class="form-input" id="sc-chg-min" type="number" placeholder="예: 3" step="0.5" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">등락률 최대 (% 이하)</label>
+                  <input class="form-input" id="sc-chg-max" type="number" placeholder="예: -3" step="0.5" />
+                </div>
+              </div>
+              <div style="margin-top:8px; font-size:12px; color:var(--muted);">
+                💡 최소만 입력 → 상승 종목 / 최대만 입력 → 하락 종목
+              </div>
+            </div>
+          </div>
+
+          <div class="btn-group">
+            <button class="btn btn-primary" onclick="runScreener()" style="flex:1; padding:12px;">🔍 스크리닝 시작</button>
+            <button class="btn btn-outline" onclick="stopScreener()">■ 중지</button>
+          </div>
+        </div>
+
+        <!-- 결과 패널 -->
+        <div style="display:flex; flex-direction:column; gap:12px;">
+          <div class="panel">
+            <div class="panel-header">
+              <span class="panel-title">스크리닝 진행</span>
+              <span id="sc-progress-label" style="font-size:12px; color:var(--muted); font-family:var(--mono);">대기중</span>
+            </div>
+            <div class="panel-body">
+              <div style="background:var(--bg); border-radius:8px; height:8px; overflow:hidden;">
+                <div id="sc-progress-bar" style="height:100%; background:var(--accent); width:0%; transition:width .3s; border-radius:8px;"></div>
+              </div>
+              <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:12px; color:var(--muted); font-family:var(--mono);">
+                <span id="sc-progress-text">0 / 0</span>
+                <span id="sc-hit-count" style="color:var(--green);">조건 충족: 0건</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <span class="panel-title">스크리닝 결과</span>
+              <button class="btn btn-outline" onclick="loadScreenerResult()" style="padding:4px 10px; font-size:12px;">새로고침</button>
+            </div>
+            <div class="panel-body" style="padding:0; max-height:600px; overflow-y:auto;">
+              <table class="data-table" id="screener-table">
+                <thead>
+                  <tr>
+                    <th>종목</th>
+                    <th>현재가</th>
+                    <th>등락률</th>
+                    <th>충족 조건</th>
+                    <th>지표</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="screener-body">
+                  <tr><td colspan="6" style="text-align:center; color:var(--muted); padding:32px;">조건을 설정하고 스크리닝을 시작하세요</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div id="toast-container"></div>
+
+<script>
+const API = 'http://localhost:8000/api';
+let ws = null;
+let priceChart = null;
+let isAuthenticated = false;
+
+// ── 시계 ──
+function updateClock() {
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString('ko-KR');
+}
+setInterval(updateClock, 1000);
+updateClock();
+// checkEnvAuth는 DOM 로드 완료 후 실행 (함수 정의보다 먼저 호출되면 안 됨)
+
+// ── 페이지 전환 ──
+function showPage(name, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ── 토스트 ──
+function toast(msg, type = 'info') {
+  const colors = { info: '#3b82f6', success: '#22c55e', error: '#ef4444', warn: '#f59e0b' };
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.style.borderLeft = `3px solid ${colors[type] || colors.info}`;
+  el.textContent = msg;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+// ── 숫자 포맷 ──
+function fmt(n) { return Number(n).toLocaleString('ko-KR'); }
+function fmtWon(n) { return fmt(n) + '원'; }
+
+// ── .env 자동 인증 체크 ──
+async function checkEnvAuth() {
+  try {
+    const res = await fetch(`${API}/env-status`);
+    const data = await res.json();
+
+    // .env 카드 표시
+    const hasAny = data.mock.configured || data.real.configured;
+    if (hasAny) {
+      document.getElementById('env-accounts').style.display = 'flex';
+    }
+    if (data.mock.configured) {
+      document.getElementById('env-mock-card').style.display = 'block';
+      document.getElementById('env-mock-account').textContent = data.mock.account_no;
+      document.getElementById('env-mock-key').textContent = 'APP KEY: ' + data.mock.app_key_preview;
+    }
+    if (data.real.configured) {
+      document.getElementById('env-real-card').style.display = 'block';
+      document.getElementById('env-real-account').textContent = data.real.account_no;
+      document.getElementById('env-real-key').textContent = 'APP KEY: ' + data.real.app_key_preview;
+    }
+
+    // 프로파일 뱃지 표시
+    if (data.profile) {
+      document.getElementById('profile-badge').style.display = 'inline-flex';
+      document.getElementById('profile-name').textContent = data.profile;
+      // 프로파일별 색상
+      const colors = { default:'var(--muted)', local:'var(--accent)', dev:'var(--yellow)', prod:'var(--red)' };
+      document.getElementById('profile-name').style.color = colors[data.profile] || 'var(--green)';
+    }
+
+    // 이미 자동 인증됐으면 바로 입장
+    if (data.already_authed) {
+      const mode = data.current_mode;
+      const info = data[mode];
+      setAuthenticated(mode, info?.account_no);
+    }
+  } catch(e) {
+    // 서버 미실행 상태면 무시
+  }
+}
+
+function setAuthenticated(mode, accountNo) {
+  isAuthenticated = true;
+  document.getElementById('auth-overlay').style.display = 'none';
+  const label = mode === 'mock' ? '모의투자' : '실전투자';
+  document.getElementById('conn-label').textContent = `${accountNo || ''} (${label})`;
+  updateModeSwitcher(mode);
+  if (!ws || ws.readyState !== WebSocket.OPEN) connectWS();
+  loadBalance();
+  loadPositions();
+}
+
+function updateModeSwitcher(mode) {
+  document.getElementById('mode-switcher').style.display = 'flex';
+  const btnMock = document.getElementById('btn-mock');
+  const btnReal = document.getElementById('btn-real');
+  if (mode === 'mock') {
+    btnMock.style.background = 'var(--accent-dim)'; btnMock.style.color = 'var(--accent)';
+    btnReal.style.background = 'transparent';       btnReal.style.color = 'var(--muted)';
+  } else {
+    btnReal.style.background = 'var(--red-dim)'; btnReal.style.color = 'var(--red)';
+    btnMock.style.background = 'transparent';    btnMock.style.color = 'var(--muted)';
+  }
+}
+
+async function connectFromEnv(mode) {
+  try {
+    const res = await fetch(`${API}/switch-mode`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ mode })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail);
+    setAuthenticated(mode, data.account_no);
+    const label = mode === 'mock' ? '모의투자' : '실전투자';
+    toast(`${label} 계좌로 연결됐습니다`, 'success');
+  } catch(err) {
+    toast('연결 실패: ' + err.message, 'error');
+  }
+}
+
+async function switchMode(mode) {
+  if (!isAuthenticated) return;
+  const label = mode === 'mock' ? '모의투자' : '실전투자';
+  if (mode === 'real') {
+    if (!confirm(`⚠️ 실전투자 계좌로 전환합니다.\n실제 자금이 거래될 수 있습니다. 계속하시겠습니까?`)) return;
+  }
+  try {
+    const res = await fetch(`${API}/switch-mode`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ mode })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail);
+    document.getElementById('conn-label').textContent = `${data.account_no} (${label})`;
+    updateModeSwitcher(mode);
+    loadBalance();
+    loadPositions();
+    toast(`${label} 계좌로 전환됐습니다`, mode === 'real' ? 'warn' : 'success');
+  } catch(err) {
+    toast('전환 실패: ' + err.message, 'error');
+  }
+}
+
+// ── WebSocket 연결 ──
+function connectWS() {
+  ws = new WebSocket('ws://localhost:8000/ws');
+  ws.onopen = () => {
+    document.getElementById('conn-dot').classList.add('live');
+    document.getElementById('conn-label').textContent = '실시간 연결됨';
+  };
+  ws.onclose = () => {
+    document.getElementById('conn-dot').classList.remove('live');
+    document.getElementById('conn-label').textContent = '연결 끊김';
+    setTimeout(connectWS, 3000);
+  };
+  ws.onmessage = _baseOnMessage;
+}
+
+function appendLog(containerId, time, text, cls) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const line = document.createElement('div');
+  line.className = 'log-line';
+  const t = new Date(time).toLocaleTimeString('ko-KR');
+  line.innerHTML = `<span class="log-time">${t}</span><span class="${cls}">${text}</span>`;
+  container.appendChild(line);
+  container.scrollTop = container.scrollHeight;
+}
+
+// ── 인증 ──
+async function authenticate() {
+  const appKey = document.getElementById('inp-appkey').value.trim();
+  const appSecret = document.getElementById('inp-appsecret').value.trim();
+  const account = document.getElementById('inp-account').value.trim();
+  const isMock = document.getElementById('inp-mock').value === 'true';
+
+  if (!appKey || !appSecret || !account) { toast('모든 항목을 입력해주세요', 'warn'); return; }
+
+  try {
+    const res = await fetch(`${API}/auth`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ app_key: appKey, app_secret: appSecret, account_no: account, is_mock: isMock })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || '인증 실패');
+    const mode = isMock ? 'mock' : 'real';
+    setAuthenticated(mode, account);
+    toast('인증 성공! 데이터를 불러옵니다.', 'success');
+  } catch (err) {
+    toast('인증 실패: ' + err.message, 'error');
+  }
+}
+
+// ── 잔고 조회 ──
+async function loadBalance() {
+  if (!isAuthenticated) return;
+  try {
+    const [bal, pos] = await Promise.all([
+      fetch(`${API}/balance`).then(r => r.json()),
+      fetch(`${API}/positions`).then(r => r.json()),
+    ]);
+    // 메트릭 업데이트
+    const pct = parseFloat(bal.profit_loss_pct);
+    const profitCls = pct >= 0 ? 'up' : 'down';
+    document.getElementById('m-total').textContent = fmtWon(bal.total_eval);
+    document.getElementById('m-cash').textContent = fmtWon(bal.cash);
+    document.getElementById('m-purchase').textContent = fmtWon(bal.purchase_amount);
+    document.getElementById('m-profit').className = `metric-sub ${profitCls}`;
+    document.getElementById('m-profit').textContent = `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}% (${fmtWon(bal.profit_loss)})`;
+    document.getElementById('b-total').textContent = fmtWon(bal.total_eval);
+    document.getElementById('b-purchase').textContent = fmtWon(bal.purchase_amount);
+    document.getElementById('b-profit').className = `metric-value ${profitCls}`;
+    document.getElementById('b-profit').textContent = fmtWon(bal.profit_loss);
+    document.getElementById('b-cash').textContent = fmtWon(bal.cash);
+    // 포지션 테이블
+    renderPositions(pos);
+  } catch (err) {
+    toast('잔고 조회 실패: ' + err.message, 'error');
+  }
+}
+
+function renderPositions(positions) {
+  const tbody = (id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (positions.length === 0) {
+      el.innerHTML = '<tr><td colspan="7" style="text-align:center; color:var(--muted); padding:24px;">보유 종목 없음</td></tr>';
+      return;
+    }
+    el.innerHTML = positions.map(p => {
+      const pct = parseFloat(p.profit_loss_pct);
+      const cls = pct >= 0 ? 'up' : 'down';
+      return `<tr>
+        <td>${p.symbol}</td>
+        <td>${p.name}</td>
+        <td>${fmt(p.qty)}</td>
+        <td>${fmtWon(p.avg_price)}</td>
+        <td>${fmtWon(p.current_price)}</td>
+        <td class="${cls}">${fmtWon(p.profit_loss)}</td>
+        <td class="${cls}">${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%</td>
+      </tr>`;
+    }).join('');
+  };
+  tbody('balance-positions-body');
+  // 대시보드용 축약
+  const el = document.getElementById('positions-body');
+  if (!el) return;
+  if (positions.length === 0) {
+    el.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--muted); padding:24px;">보유 종목 없음</td></tr>';
+    return;
+  }
+  el.innerHTML = positions.map(p => {
+    const pct = parseFloat(p.profit_loss_pct);
+    const cls = pct >= 0 ? 'up' : 'down';
+    return `<tr>
+      <td>${p.symbol} ${p.name}</td>
+      <td>${fmt(p.qty)}주</td>
+      <td class="${cls}">${fmtWon(p.profit_loss)}</td>
+      <td class="${cls}">${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%</td>
+    </tr>`;
+  }).join('');
+}
+
+async function loadPositions() {
+  if (!isAuthenticated) return;
+  try {
+    const pos = await fetch(`${API}/positions`).then(r => r.json());
+    renderPositions(pos);
+  } catch(e) {}
+}
+
+// ── 종목 검색 자동완성 ──
+let _searchTimer = null;
+let _searchResults = [];
+let _searchIdx = -1;
+
+async function onSearchInput(val) {
+  const dd = document.getElementById('search-dropdown');
+  clearTimeout(_searchTimer);
+  if (!val.trim() || val.trim().length < 1) {
+    dd.style.display = 'none';
+    return;
+  }
+  _searchTimer = setTimeout(async () => {
+    if (!isAuthenticated) return;
+    try {
+      const res = await fetch(`${API}/search?q=${encodeURIComponent(val.trim())}`);
+      _searchResults = await res.json();
+      renderSearchDropdown(_searchResults, val.trim());
+    } catch(e) {}
+  }, 250);
+}
+
+function renderSearchDropdown(items, query) {
+  const dd = document.getElementById('search-dropdown');
+  if (!items.length) { dd.style.display = 'none'; return; }
+  _searchIdx = -1;
+  dd.innerHTML = items.map((item, i) => {
+    // 매칭 부분 하이라이트
+    const hl = (str) => {
+      const idx = str.toLowerCase().indexOf(query.toLowerCase());
+      if (idx < 0) return str;
+      return str.slice(0, idx) +
+        `<strong style="color:var(--text);">${str.slice(idx, idx + query.length)}</strong>` +
+        str.slice(idx + query.length);
+    };
+    return `<div class="search-item" data-idx="${i}"
+      onmousedown="selectStock('${item.symbol}','${item.name.replace(/'/g,"\'")}')">
+      <span class="search-code">${item.symbol}</span>
+      <span class="search-name">${hl(item.name)}</span>
+    </div>`;
+  }).join('');
+  dd.style.display = 'block';
+}
+
+function onSearchKeydown(e) {
+  const dd = document.getElementById('search-dropdown');
+  const items = dd.querySelectorAll('.search-item');
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    _searchIdx = Math.min(_searchIdx + 1, items.length - 1);
+    items.forEach((el, i) => el.classList.toggle('active', i === _searchIdx));
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    _searchIdx = Math.max(_searchIdx - 1, 0);
+    items.forEach((el, i) => el.classList.toggle('active', i === _searchIdx));
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    if (_searchIdx >= 0 && _searchResults[_searchIdx]) {
+      const s = _searchResults[_searchIdx];
+      selectStock(s.symbol, s.name);
+    } else if (_searchResults.length > 0) {
+      selectStock(_searchResults[0].symbol, _searchResults[0].name);
+    } else {
+      // 숫자 코드 직접 입력
+      const val = document.getElementById('quote-search').value.trim();
+      if (/^\d{6}$/.test(val)) selectStock(val, val);
+    }
+  } else if (e.key === 'Escape') {
+    document.getElementById('search-dropdown').style.display = 'none';
+  }
+}
+
+function selectStock(code, name) {
+  document.getElementById('quote-symbol').value = code;
+  document.getElementById('quote-search').value = name !== code ? `${name} (${code})` : code;
+  document.getElementById('search-dropdown').style.display = 'none';
+  document.getElementById('selected-stock').style.display = 'flex';
+  document.getElementById('selected-code').textContent = code;
+  document.getElementById('selected-name').textContent = name !== code ? name : '';
+  loadQuote();
+}
+
+// 드롭다운 외부 클릭 시 닫기
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#search-dropdown') && !e.target.matches('#quote-search')) {
+    document.getElementById('search-dropdown').style.display = 'none';
+  }
+});
+
+// ── 시세 조회 + 차트 ──
+async function loadQuote() {
+  let sym = document.getElementById('quote-symbol').value.trim();
+  // hidden input이 비어있으면 검색창에서 6자리 코드 추출 시도
+  if (!sym) {
+    const raw = document.getElementById('quote-search')?.value.trim() || '';
+    const match = raw.match(/\d{6}/);
+    if (match) sym = match[0];
+  }
+  if (!sym) { toast('종목명 또는 코드를 입력하세요', 'warn'); return; }
+  if (!isAuthenticated) { toast('먼저 인증이 필요합니다', 'warn'); return; }
+  try {
+    const [price, history] = await Promise.all([
+      fetch(`${API}/price/${sym}`).then(r => r.json()),
+      fetch(`${API}/price/${sym}/history?period=D&count=60`).then(r => r.json()),
+    ]);
+    const chgCls = price.change >= 0 ? 'up' : 'down';
+    document.getElementById('q-price').textContent = fmtWon(price.price);
+    document.getElementById('q-price').className = `metric-value ${chgCls}`;
+    document.getElementById('q-change').textContent = (price.change >= 0 ? '+' : '') + fmtWon(price.change);
+    document.getElementById('q-change').className = `metric-value ${chgCls}`;
+    document.getElementById('q-pct').textContent = (price.change_pct >= 0 ? '+' : '') + parseFloat(price.change_pct).toFixed(2) + '%';
+    document.getElementById('q-pct').className = `metric-value ${chgCls}`;
+    document.getElementById('q-vol').textContent = fmt(price.volume);
+    document.getElementById('q-hl').innerHTML = `<span style="font-size:14px">${fmtWon(price.high)}<br>${fmtWon(price.low)}</span>`;
+    drawPriceChart(history);
+  } catch(err) {
+    toast('시세 조회 실패: ' + err.message, 'error');
+  }
+}
+
+function ma(data, period) {
+  return data.map((_, i) => {
+    if (i < period - 1) return null;
+    const slice = data.slice(i - period + 1, i + 1);
+    return Math.round(slice.reduce((a, b) => a + b, 0) / period);
+  });
+}
+
+function drawPriceChart(history) {
+  const labels = history.map(h => h.date.substring(4));
+  const closes = history.map(h => h.close);
+  const short_period = parseInt(document.getElementById('strat-short').value) || 5;
+  const long_period = parseInt(document.getElementById('strat-long').value) || 20;
+  const shortMA = ma(closes, short_period);
+  const longMA = ma(closes, long_period);
+
+  if (priceChart) priceChart.destroy();
+  priceChart = new Chart(document.getElementById('priceChart'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: '종가', data: closes, borderColor: '#ef4444', borderWidth: 1.5, pointRadius: 0, fill: false, tension: 0.2 },
+        { label: `단기MA(${short_period})`, data: shortMA, borderColor: '#3b82f6', borderWidth: 1.5, borderDash: [4,2], pointRadius: 0, fill: false },
+        { label: `장기MA(${long_period})`, data: longMA, borderColor: '#f59e0b', borderWidth: 1.5, borderDash: [4,2], pointRadius: 0, fill: false },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#6b7a99', maxTicksLimit: 10, font: { family: 'JetBrains Mono' } } },
+        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#6b7a99', font: { family: 'JetBrains Mono' }, callback: v => fmt(v) } }
+      }
+    }
+  });
+}
+
+// ── 수동 주문 ──
+async function placeOrder(forceSide) {
+  if (!isAuthenticated) { toast('먼저 인증이 필요합니다', 'warn'); return; }
+  const symbol = document.getElementById('ord-symbol').value.trim();
+  const side = forceSide || document.getElementById('ord-side').value;
+  const qty = parseInt(document.getElementById('ord-qty').value);
+  const price = parseInt(document.getElementById('ord-price').value) || 0;
+  if (!symbol || !qty) { toast('종목코드와 수량을 입력하세요', 'warn'); return; }
+  try {
+    const res = await fetch(`${API}/order`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symbol, side, qty, price })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail);
+    toast(`${side === 'BUY' ? '매수' : '매도'} 주문 완료 (주문번호: ${data.order_no})`, 'success');
+    loadOrders();
+  } catch(err) {
+    toast('주문 실패: ' + err.message, 'error');
+  }
+}
+
+async function loadOrders() {
+  if (!isAuthenticated) return;
+  try {
+    const orders = await fetch(`${API}/orders`).then(r => r.json());
+    const html = Array.isArray(orders) && orders.length > 0
+      ? orders.map(o => `<tr><td>${o.ODNO||'-'}</td><td>${o.PDNO||'-'}</td><td>${o.SLL_BUY_DVSN_CD==='02'?'매도':'매수'}</td><td>${fmt(o.ORD_QTY||0)}</td><td>${fmtWon(o.ORD_UNPR||0)}</td><td>${o.ORD_TMD||'-'}</td></tr>`).join('')
+      : '<tr><td colspan="6" style="text-align:center; color:var(--muted); padding:24px;">주문 내역 없음</td></tr>';
+    document.querySelectorAll('#orders-body, #orders-hist-body').forEach(el => el.innerHTML = html);
+  } catch(e) {}
+}
+
+// ── 자동매매 전략 ──
+function onStrategyChange() {
+  const type = document.getElementById('strat-type').value;
+  document.querySelectorAll('.strat-params').forEach(el => el.style.display = 'none');
+  const panel = document.getElementById('params-' + type);
+  if (panel) panel.style.display = 'grid';
+}
+
+async function startStrategy() {
+  if (!isAuthenticated) { toast('먼저 인증이 필요합니다', 'warn'); return; }
+  const strategy = document.getElementById('strat-type').value;
+  const symbol = document.getElementById('strat-symbol').value.trim();
+  const qty = parseInt(document.getElementById('strat-qty').value);
+  const check_interval = parseInt(document.getElementById('strat-interval').value);
+  if (!symbol || !qty) { toast('종목코드와 수량을 입력하세요', 'warn'); return; }
+
+  const payload = {
+    strategy, symbol, qty, check_interval,
+    short_period:  parseInt(document.getElementById('strat-short')?.value || 5),
+    long_period:   parseInt(document.getElementById('strat-long')?.value || 20),
+    rsi_period:    parseInt(document.getElementById('strat-rsi-period')?.value || 14),
+    oversold:      parseFloat(document.getElementById('strat-oversold')?.value || 30),
+    overbought:    parseFloat(document.getElementById('strat-overbought')?.value || 70),
+    bb_period:     parseInt(document.getElementById('strat-bb-period')?.value || 20),
+    bb_k:          parseFloat(document.getElementById('strat-bb-k')?.value || 2),
+    macd_fast:     parseInt(document.getElementById('strat-macd-fast')?.value || 12),
+    macd_slow:     parseInt(document.getElementById('strat-macd-slow')?.value || 26),
+    macd_signal:   parseInt(document.getElementById('strat-macd-signal')?.value || 9),
+  };
+
+  const stratNames = { golden_cross:'골든크로스', rsi:'RSI', bollinger:'볼린저밴드', macd:'MACD' };
+  try {
+    const res = await fetch(`${API}/strategy/start`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error((await res.json()).detail);
+    const name = stratNames[strategy] || strategy;
+    document.getElementById('strat-name').textContent = `${symbol} ${name} 실행중`;
+    document.getElementById('strat-detail').textContent = `${check_interval}초 주기`;
+    document.getElementById('strat-badge').className = 'badge badge-live';
+    document.getElementById('strat-badge').textContent = 'RUNNING';
+    document.getElementById('m-bot').textContent = name;
+    document.getElementById('m-bot-symbol').textContent = symbol;
+    toast(`${symbol} ${name} 자동매매 시작`, 'success');
+  } catch(err) {
+    toast('전략 시작 실패: ' + err.message, 'error');
+  }
+}
+
+async function stopStrategy() {
+  try {
+    await fetch(`${API}/strategy/stop`, { method: 'POST' });
+    document.getElementById('strat-name').textContent = '중지됨';
+    document.getElementById('strat-detail').textContent = '전략이 중지되었습니다';
+    document.getElementById('strat-badge').className = 'badge badge-hold';
+    document.getElementById('strat-badge').textContent = 'STOPPED';
+    document.getElementById('m-bot').textContent = '대기';
+    document.getElementById('m-bot-symbol').textContent = '-';
+    toast('자동매매 중지', 'warn');
+  } catch(err) {
+    toast('중지 실패: ' + err.message, 'error');
+  }
+}
+
+async function loadStrategyLog() {
+  if (!isAuthenticated) return;
+  try {
+    const logs = await fetch(`${API}/strategy/log`).then(r => r.json());
+    const container = document.getElementById('strategy-log-full');
+    container.innerHTML = '';
+    logs.forEach(l => {
+      const cls = l.signal === 'GOLDEN_CROSS' ? 'log-buy' : l.signal === 'DEAD_CROSS' ? 'log-sell' : 'log-hold';
+      const text = l.action || `[${l.signal||'HOLD'}] 가격:${fmt(l.price)} 단기MA:${l.short_ma} 장기MA:${l.long_ma}`;
+      appendLog('strategy-log-full', l.time, text, cls);
+    });
+  } catch(e) {}
+}
+
+// ── 스크리너 ──────────────────────────────────────────────
+let scHitCount = 0;
+let scProgressTimer = null;
+
+function toggleCond(name, forceState) {
+  const cb = document.getElementById('use-' + name);
+  const panel = document.getElementById('cond-' + name);
+  if (!cb || !panel) return;
+  const show = forceState !== undefined ? forceState : !cb.checked;
+  cb.checked = show;
+  panel.style.display = show ? 'block' : 'none';
+}
+
+async function runScreener() {
+  if (!isAuthenticated) { toast('먼저 인증이 필요합니다', 'warn'); return; }
+
+  const g = (id) => document.getElementById(id);
+  const flt = (id) => { const v = g(id)?.value; return v !== '' && v != null ? parseFloat(v) : null; };
+  const int_ = (id, def) => parseInt(g(id)?.value || def);
+
+  const payload = {
+    universe: g('sc-universe').value,
+    use_rsi:      g('use-rsi').checked,
+    rsi_period:   int_('sc-rsi-period', 14),
+    rsi_min:      flt('sc-rsi-min'),
+    rsi_max:      flt('sc-rsi-max'),
+    use_bollinger: g('use-bollinger').checked,
+    bb_period:    int_('sc-bb-period', 20),
+    bb_k:         parseFloat(g('sc-bb-k')?.value || 2),
+    bb_position:  g('sc-bb-position')?.value || 'below_lower',
+    use_macd:     g('use-macd').checked,
+    macd_fast:    int_('sc-macd-fast', 12),
+    macd_slow:    int_('sc-macd-slow', 26),
+    macd_signal:  int_('sc-macd-signal', 9),
+    macd_cross:   g('sc-macd-cross')?.value || 'golden',
+    use_ma_cross: g('use-macross').checked,
+    ma_short:     int_('sc-ma-short', 5),
+    ma_long:      int_('sc-ma-long', 20),
+    ma_cross:     g('sc-ma-cross')?.value || 'golden',
+    use_volume:   g('use-volume').checked,
+    volume_ratio: parseFloat(g('sc-vol-ratio')?.value || 2),
+    volume_avg_days: int_('sc-vol-days', 20),
+    use_change:   g('use-change').checked,
+    change_min:   flt('sc-chg-min'),
+    change_max:   flt('sc-chg-max'),
+  };
+
+  const conds = ['rsi','bollinger','macd','macross','volume','change'];
+  const anyChecked = conds.some(c => {
+    const el = document.getElementById('use-' + c);
+    return el && el.checked;
+  });
+  if (!anyChecked) { toast('조건을 최소 1개 이상 선택하세요', 'warn'); return; }
+
+  // UI 초기화
+  scHitCount = 0;
+  document.getElementById('screener-body').innerHTML =
+    '<tr><td colspan="6" style="text-align:center; color:var(--muted); padding:24px;">스크리닝 중...</td></tr>';
+  document.getElementById('sc-hit-count').textContent = '조건 충족: 0건';
+  document.getElementById('sc-progress-bar').style.width = '0%';
+  document.getElementById('sc-progress-label').textContent = '실행중...';
+
+  try {
+    const res = await fetch(`${API}/screener/run`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail);
+    toast(`스크리닝 시작 (${data.total}개 종목)`, 'info');
+    // 진행률 폴링
+    if (scProgressTimer) clearInterval(scProgressTimer);
+    scProgressTimer = setInterval(pollScreenerProgress, 1500);
+  } catch(err) {
+    toast('스크리닝 실패: ' + err.message, 'error');
+  }
+}
+
+async function pollScreenerProgress() {
+  try {
+    const p = await fetch(`${API}/screener/progress`).then(r => r.json());
+    document.getElementById('sc-progress-bar').style.width = (p.pct || 0) + '%';
+    document.getElementById('sc-progress-text').textContent = `${p.done} / ${p.total}`;
+    document.getElementById('sc-progress-label').textContent = `${p.pct || 0}%`;
+    if (p.status === 'done') {
+      clearInterval(scProgressTimer);
+      document.getElementById('sc-progress-label').textContent = '완료';
+      await loadScreenerResult();
+      toast('스크리닝 완료!', 'success');
+    }
+  } catch(e) {}
+}
+
+async function stopScreener() {
+  await fetch(`${API}/screener/stop`, { method: 'POST' });
+  if (scProgressTimer) clearInterval(scProgressTimer);
+  document.getElementById('sc-progress-label').textContent = '중지됨';
+  toast('스크리닝 중지', 'warn');
+}
+
+async function loadScreenerResult() {
+  try {
+    const results = await fetch(`${API}/screener/result`).then(r => r.json());
+    const tbody = document.getElementById('screener-body');
+    if (!results.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--muted); padding:32px;">조건에 맞는 종목이 없습니다</td></tr>';
+      return;
+    }
+    document.getElementById('sc-hit-count').textContent = `조건 충족: ${results.length}건`;
+    tbody.innerHTML = results.map(r => {
+      const pct = parseFloat(r.change_pct);
+      const cls = pct >= 0 ? 'up' : 'down';
+      const conds = r.conditions.map(c => `<span class="badge badge-live" style="font-size:10px; margin:1px;">${c}</span>`).join('');
+      const inds = Object.entries(r.indicators)
+        .map(([k,v]) => `<span style="font-size:11px; color:var(--muted);">${k}: <strong style="color:var(--text);">${typeof v === 'number' ? (v > 1000 ? fmt(v) : v) : v}</strong></span>`)
+        .join(' &nbsp;');
+      return `<tr>
+        <td><strong>${r.symbol}</strong><br><span style="font-size:11px;color:var(--muted);">${r.name}</span></td>
+        <td style="font-family:var(--mono);">${fmtWon(r.price)}</td>
+        <td class="${cls}" style="font-family:var(--mono);">${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%</td>
+        <td>${conds}</td>
+        <td style="font-size:11px;">${inds}</td>
+        <td>
+          <button class="btn btn-outline" style="padding:3px 8px; font-size:11px;"
+            onclick="showPage('quote', document.querySelector('.nav-item:nth-child(4)')); setTimeout(()=>selectStock('${r.symbol}','${r.name}'),50);">
+            차트
+          </button>
+        </td>
+      </tr>`;
+    }).join('');
+  } catch(e) {
+    toast('결과 조회 실패: ' + e.message, 'error');
+  }
+}
+
+// WebSocket에서 실시간 결과 수신
+const _origOnMessage = ws ? ws.onmessage : null;
+document.addEventListener('DOMContentLoaded', () => {
+  // ws onmessage 확장 (기존 핸들러 유지하며 screener 이벤트 추가)
+});
+
+// ws onmessage 확장 - 기존 핸들러 이후에 screener 처리
+const _baseOnMessage = (e) => {
+  const msg = JSON.parse(e.data);
+  if (msg.type === 'trade') {
+    const d = msg.data;
+    const cls = msg.signal === 'BUY' ? 'log-buy' : 'log-sell';
+    appendLog('strategy-log-dash', d.time, `[${msg.signal}] ${d.action}`, cls);
+    appendLog('strategy-log-full', d.time, `[${msg.signal}] ${d.action} | MA단기:${d.short_ma} MA장기:${d.long_ma}`, cls);
+    toast(`${msg.signal === 'BUY' ? '🟢 매수' : '🔴 매도'} ${d.action}`, msg.signal === 'BUY' ? 'success' : 'error');
+  } else if (msg.type === 'signal') {
+    const d = msg.data;
+    appendLog('strategy-log-full', d.time, `[HOLD] 가격:${fmt(d.price)} 단기MA:${d.short_ma} 장기MA:${d.long_ma}`, 'log-hold');
+  } else if (msg.type === 'screener_hit') {
+    scHitCount++;
+    document.getElementById('sc-hit-count').textContent = `조건 충족: ${scHitCount}건`;
+  } else if (msg.type === 'screener_done') {
+    loadScreenerResult();
+  }
+};
+
+// ── 종목 마스터 상태 확인 ──
+async function checkMasterStatus() {
+  const input = document.getElementById('quote-search');
+  if (!input) return;
+  try {
+    const res = await fetch(`${API}/master/status`);
+    const data = await res.json();
+    if (data.loaded) {
+      input.placeholder = `종목명 또는 코드 검색 (전체 ${data.total.toLocaleString()}종목)`;
+    } else {
+      input.placeholder = '종목 마스터 로딩 중... (잠시 후 검색 가능)';
+      // 3초 후 재확인
+      setTimeout(checkMasterStatus, 3000);
+    }
+  } catch(e) {
+    input.placeholder = '종목명 또는 코드 검색 (예: 삼성전자, 005930)';
+  }
+}
+
+// 30초마다 잔고 새로고침
+setInterval(() => { if (isAuthenticated) loadBalance(); }, 30000);
+
+// 모든 함수 정의 완료 후 실행
+window.addEventListener('DOMContentLoaded', () => {
+  checkEnvAuth();
+  checkMasterStatus();
+});
+</script>
+</body>
+</html>

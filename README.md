@@ -1,0 +1,209 @@
+# 📈 KIS 자동매매 시스템
+
+한국투자증권 OpenAPI를 활용한 웹 기반 주식 자동매매 대시보드입니다.
+실시간 시세 조회, 조건 기반 자동매매, 종목 스크리너 기능을 제공합니다.
+
+> ⚠️ **주의:** 이 프로젝트는 교육 목적으로 제작되었습니다. 실제 투자 손실에 대한 책임은 사용자에게 있으며, 반드시 **모의투자로 먼저 테스트**하세요.
+
+---
+
+## 📁 프로젝트 구조
+
+```
+kis_trading/
+├── backend/
+│   ├── main.py              # FastAPI 서버 (REST API + WebSocket)
+│   ├── kis_api.py           # 한국투자증권 OpenAPI 래퍼
+│   ├── strategy.py          # 자동매매 전략 (골든크로스, RSI, 볼린저밴드, MACD)
+│   ├── screener.py          # 종목 스크리너
+│   ├── requirements.txt     # Python 패키지 목록
+│   ├── .env.example         # 환경변수 템플릿 (기본)
+│   ├── .env.local.example   # 환경변수 템플릿 (로컬 개발용)
+│   └── .env.prod.example    # 환경변수 템플릿 (프로덕션)
+├── frontend/
+│   └── index.html           # 웹 대시보드 (단일 파일)
+├── .gitignore
+└── README.md
+```
+
+---
+
+## 🚀 시작하기
+
+### 1. API 키 발급
+
+[KIS Developer Portal](https://apiportal.koreainvestment.com) 에 접속하여 앱을 등록하고 키를 발급받습니다.
+
+- 모의투자와 실전투자 앱을 **각각 별도로** 등록해야 합니다
+- 발급된 `APP KEY`와 `APP SECRET`을 복사해 둡니다
+
+### 2. 패키지 설치
+
+```bash
+cd kis_trading/backend
+pip3 install -r requirements.txt
+```
+
+### 3. 환경변수 설정
+
+프로파일에 맞는 템플릿을 복사해서 실제 값을 입력합니다.
+
+```bash
+# 기본 (모의 + 실전 모두 설정)
+cp .env.example .env
+
+# 로컬 개발용 (모의만 사용)
+cp .env.local.example .env.local
+
+# 프로덕션 (실전 거래)
+cp .env.prod.example .env.prod
+```
+
+`.env` 파일 형식:
+
+```env
+# 모의투자 계좌
+KIS_MOCK_APP_KEY=여기에_모의투자_APP_KEY
+KIS_MOCK_APP_SECRET=여기에_모의투자_APP_SECRET
+KIS_MOCK_ACCOUNT_NO=50123456-01
+
+# 실전투자 계좌
+KIS_REAL_APP_KEY=여기에_실전투자_APP_KEY
+KIS_REAL_APP_SECRET=여기에_실전투자_APP_SECRET
+KIS_REAL_ACCOUNT_NO=50123456-01
+```
+
+### 4. 백엔드 서버 실행
+
+```bash
+# 기본 (.env 로드)
+python3 main.py
+
+# 로컬 개발 (.env.local 로드)
+python3 main.py --env local
+
+# 프로덕션 (.env.prod 로드)
+python3 main.py --env prod
+```
+
+서버가 정상 실행되면 아래처럼 출력됩니다:
+
+```
+🌿 환경 프로파일: [local] (.env.local)
+✅ .env 자동 인증 완료 (모의투자 / 50123456-01)
+🚀 서버 시작 | 프로파일: [local] | http://0.0.0.0:8000
+```
+
+### 5. 웹 대시보드 열기
+
+```bash
+cd ../frontend
+python3 -m http.server 3000
+```
+
+브라우저에서 [http://localhost:3000](http://localhost:3000) 접속
+
+---
+
+## 🖥️ 주요 기능
+
+### 대시보드
+- 총 평가금액, 예수금, 매입금액, 자동매매 상태 한눈에 확인
+- 보유 종목 수익률 실시간 표시
+- 전략 실행 로그 스트림
+
+### 시세 조회
+- 종목코드 입력 시 현재가, 등락률, 거래량 조회
+- 이동평균선(단기/장기)이 오버레이된 일봉 차트
+
+### 수동 주문
+- 시장가 / 지정가 매수·매도 주문
+- 주문 내역 조회
+
+### 자동매매 전략
+
+| 전략 | 매수 신호 | 매도 신호 |
+|------|----------|----------|
+| **골든크로스** | 단기MA가 장기MA 상향 돌파 | 단기MA가 장기MA 하향 돌파 |
+| **RSI** | RSI ≤ 30 (과매도) | RSI ≥ 70 (과매수) |
+| **볼린저밴드** | 종가가 하단밴드 이탈 | 종가가 상단밴드 돌파 |
+| **MACD** | MACD가 Signal 상향 돌파 | MACD가 Signal 하향 돌파 |
+
+- 포지션 없을 때만 매수, 보유 중일 때만 매도 (중복 주문 방지)
+- WebSocket으로 매매 신호 실시간 알림
+- 전략 로그 최대 200건 보관
+
+### 종목 스크리너
+- KOSPI200 + KOSDAQ150 대상 (약 350종목)
+- RSI, 볼린저밴드, MACD, 골든크로스, 거래량 급증, 등락률 조건 복수 적용
+- 실시간 진행률 표시 및 결과 테이블
+- 조건 충족 종목에서 바로 차트 조회 가능
+
+---
+
+## 📡 API 엔드포인트
+
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| `POST` | `/api/auth` | 수동 인증 (키 직접 입력) |
+| `GET` | `/api/env-status` | .env 설정 상태 및 프로파일 조회 |
+| `POST` | `/api/switch-mode` | 모의 ↔ 실전 계좌 전환 |
+| `GET` | `/api/price/{symbol}` | 현재가 조회 |
+| `GET` | `/api/price/{symbol}/history` | 일봉 OHLCV |
+| `GET` | `/api/balance` | 계좌 잔고 |
+| `GET` | `/api/positions` | 보유 종목 |
+| `POST` | `/api/order` | 매수/매도 주문 |
+| `GET` | `/api/orders` | 주문 내역 |
+| `POST` | `/api/strategy/start` | 자동매매 시작 |
+| `POST` | `/api/strategy/stop` | 자동매매 중지 |
+| `GET` | `/api/strategy/status` | 전략 상태 |
+| `GET` | `/api/strategy/log` | 전략 실행 로그 |
+| `POST` | `/api/screener/run` | 종목 스크리닝 시작 |
+| `POST` | `/api/screener/stop` | 스크리닝 중지 |
+| `GET` | `/api/screener/progress` | 스크리닝 진행률 |
+| `GET` | `/api/screener/result` | 스크리닝 결과 |
+| `WS` | `/ws` | 실시간 알림 WebSocket |
+| `WS` | `/ws/price/{symbol}` | 실시간 시세 WebSocket |
+
+API 문서는 서버 실행 후 [http://localhost:8000/docs](http://localhost:8000/docs) 에서 자동 생성됩니다.
+
+---
+
+## 🌿 환경 프로파일
+
+| 실행 명령 | 로드 파일 | 용도 |
+|----------|----------|------|
+| `python3 main.py` | `.env` | 기본 |
+| `python3 main.py --env local` | `.env.local` | 로컬 개발 |
+| `python3 main.py --env dev` | `.env.dev` | 개발 서버 |
+| `python3 main.py --env prod` | `.env.prod` | 프로덕션 |
+| `python3 main.py --env staging` | `.env.staging` | 임의 이름 가능 |
+
+현재 로드된 프로파일은 대시보드 헤더 우측 `ENV: local` 뱃지로 확인할 수 있습니다.
+
+---
+
+## 🔒 보안
+
+- `.env`, `.env.local`, `.env.prod` 등 실제 키가 담긴 파일은 `.gitignore`에 등록되어 있어 깃허브에 올라가지 않습니다
+- `.env.*.example` 파일만 커밋되며, 키값은 포함되지 않습니다
+- API 키를 실수로 커밋했다면 즉시 [KIS Developer Portal](https://apiportal.koreainvestment.com)에서 재발급하세요
+
+---
+
+## ⚙️ 기술 스택
+
+| 영역 | 기술 |
+|------|------|
+| 백엔드 | Python 3.10+, FastAPI, uvicorn, aiohttp |
+| 실시간 통신 | WebSocket |
+| 환경변수 | python-dotenv |
+| 프론트엔드 | Vanilla JS, Chart.js, HTML/CSS (단일 파일) |
+| 대상 API | 한국투자증권 OpenAPI (REST) |
+
+---
+
+## 📜 라이선스
+
+이 프로젝트는 교육 및 개인 사용 목적으로 제작되었습니다.
+한국투자증권 OpenAPI 이용약관을 반드시 준수하세요.

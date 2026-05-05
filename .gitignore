@@ -1,0 +1,22 @@
+# 절대 커밋하면 안 되는 파일
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# 로그
+*.log
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
