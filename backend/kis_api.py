@@ -1,3 +1,4 @@
+import asyncio
 """
 한국투자증권 OpenAPI 래퍼
 REST API + WebSocket 시세
@@ -71,24 +72,35 @@ class KISApi:
             headers.update(extra)
         return headers
 
-    async def _get(self, path: str, tr_id: str, params: dict) -> dict:
+    async def _get(self, path: str, tr_id: str, params: dict,
+                   _retry: int = 0) -> dict:
         await self._ensure_token()
         url = f"{self.base_url}{path}"
         async with aiohttp.ClientSession() as session:
             async with session.get(url, headers=self._headers(tr_id), params=params) as resp:
                 data = await resp.json()
                 if data.get("rt_cd") != "0":
-                    raise ValueError(f"API 오류: {data.get('msg1', data)}")
+                    msg = data.get("msg1", "")
+                    # 초당 거래건수 초과 → 0.5초 대기 후 최대 3회 재시도
+                    if "초당" in msg and _retry < 3:
+                        await asyncio.sleep(0.5 * (_retry + 1))
+                        return await self._get(path, tr_id, params, _retry + 1)
+                    raise ValueError(f"API 오류: {msg or data}")
                 return data
 
-    async def _post(self, path: str, tr_id: str, body: dict) -> dict:
+    async def _post(self, path: str, tr_id: str, body: dict,
+                    _retry: int = 0) -> dict:
         await self._ensure_token()
         url = f"{self.base_url}{path}"
         async with aiohttp.ClientSession() as session:
             async with session.post(url, headers=self._headers(tr_id), json=body) as resp:
                 data = await resp.json()
                 if data.get("rt_cd") != "0":
-                    raise ValueError(f"API 오류: {data.get('msg1', data)}")
+                    msg = data.get("msg1", "")
+                    if "초당" in msg and _retry < 3:
+                        await asyncio.sleep(0.5 * (_retry + 1))
+                        return await self._post(path, tr_id, body, _retry + 1)
+                    raise ValueError(f"API 오류: {msg or data}")
                 return data
 
     # ── 현재가 조회 (FHKST01010100) ─────────────────────────

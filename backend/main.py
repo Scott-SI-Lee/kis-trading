@@ -53,6 +53,7 @@ from strategy import STRATEGY_MAP, GoldenCrossStrategy, RSIStrategy, BollingerSt
 from strategy import AutoTrader
 from screener import Screener, ScreenerCondition, ALL_STOCKS
 from stock_master import stock_master, schedule_daily_refresh
+from lgbm_optimizer import LGBMOptimizer
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -77,6 +78,7 @@ kis: Optional[KISApi] = None
 trader: Optional[AutoTrader] = None
 ws_clients: List[WebSocket] = []
 screener_instance: Optional[Screener] = None
+lgbm_optimizer:    Optional[LGBMOptimizer] = None
 
 # ── .env에서 자격증명 로드 (모의/실전 분리) ─────────────────────
 def load_credentials_from_env(mode: str = "mock") -> Optional[dict]:
@@ -124,7 +126,7 @@ class OrderRequest(BaseModel):
     price: int = 0         # 0 = 시장가
 
 class StrategyRequest(BaseModel):
-    strategy: str = "golden_cross"  # golden_cross | rsi | bollinger | macd
+    strategy: str = "golden_cross"  # golden_cross | rsi | bollinger | macd | lgbm_ai
     symbol: str
     qty: int
     check_interval: int = 60        # 초
@@ -142,6 +144,8 @@ class StrategyRequest(BaseModel):
     macd_fast: int = 12
     macd_slow: int = 26
     macd_signal: int = 9
+    # AI 파라미터
+    ai_confidence: float = 0.45
 
 # ── 인증 ───────────────────────────────────────────────────
 @app.post("/api/auth")
@@ -253,6 +257,9 @@ async def start_strategy(req: StrategyRequest):
     elif req.strategy == "macd":
         strategy = strat_cls(symbol=req.symbol, qty=req.qty,
                              fast=req.macd_fast, slow=req.macd_slow, signal_period=req.macd_signal)
+    elif req.strategy == "lgbm_ai":
+        strategy = strat_cls(symbol=req.symbol, qty=req.qty, kis_api=kis,
+                             min_confidence=req.ai_confidence)
     else:
         raise HTTPException(status_code=400, detail="지원하지 않는 전략")
 
@@ -266,6 +273,7 @@ async def list_strategies():
         {"id": "rsi",          "name": "RSI",         "desc": "RSI 과매수/과매도"},
         {"id": "bollinger",    "name": "볼린저밴드",  "desc": "볼린저밴드 상/하단 돌파"},
         {"id": "macd",         "name": "MACD",        "desc": "MACD 시그널 크로스"},
+        {"id": "lgbm_ai",      "name": "AI 파라미터", "desc": "저장된 LightGBM 모델 예측"},
     ]
 
 @app.post("/api/strategy/stop")
@@ -488,3 +496,90 @@ async def screener_result():
     if screener_instance is None:
         return []
     return screener_instance.last_result()
+
+# ── LightGBM 최적화 ─────────────────────────────────────────
+class LGBMRequest(BaseModel):
+    symbol:   str
+    n_trials: int = 50
+    ohlcv_count: int = 500
+
+@app.post("/api/lgbm/run")
+async def lgbm_run(req: LGBMRequest):
+    global lgbm_optimizer
+    require_auth()
+    if lgbm_optimizer and lgbm_optimizer.is_running:
+        raise HTTPException(status_code=400, detail="이미 최적화가 실행 중입니다")
+    lgbm_optimizer = LGBMOptimizer(kis)
+    asyncio.create_task(
+        lgbm_optimizer.run(req.symbol, req.n_trials, req.ohlcv_count, broadcast)
+    )
+    return {"ok": True, "message": f"{req.symbol} LightGBM 최적화 시작",
+            "n_trials": req.n_trials, "ohlcv_count": req.ohlcv_count}
+
+@app.post("/api/lgbm/stop")
+async def lgbm_stop():
+    if lgbm_optimizer:
+        lgbm_optimizer.stop()
+    return {"ok": True}
+
+@app.get("/api/lgbm/progress")
+async def lgbm_progress():
+    if lgbm_optimizer is None:
+        return {"status": "idle", "trial": 0, "total": 0, "best_score": 0}
+    return lgbm_optimizer.progress
+
+@app.get("/api/lgbm/result")
+async def lgbm_result():
+    if lgbm_optimizer is None:
+        return {"status": "idle"}
+    return lgbm_optimizer.result or {"status": "idle"}
+
+@app.get("/api/lgbm/models")
+async def lgbm_models():
+    model_dir = Path(__file__).parent / "models"
+    if not model_dir.exists():
+        return []
+
+    models = []
+    for meta_path in model_dir.glob("*_meta.json"):
+        try:
+            meta = json.loads(meta_path.read_text())
+            symbol = meta.get("symbol") or meta_path.name.replace("_meta.json", "")
+            stock = stock_master.get_by_code(symbol) if stock_master.loaded else None
+            params = meta.get("best_params") or {}
+            models.append({
+                "symbol": symbol,
+                "name": stock["name"] if stock else ALL_STOCKS.get(symbol, ""),
+                "trained_at": meta.get("trained_at"),
+                "feature_count": len(meta.get("feature_cols") or []),
+                "horizon": meta.get("horizon") or params.get("horizon"),
+                "buy_threshold": meta.get("buy_threshold") or params.get("buy_threshold"),
+                "sell_threshold": meta.get("sell_threshold") or params.get("sell_threshold"),
+                "has_model": (model_dir / f"{symbol}_lgbm.txt").exists(),
+            })
+        except Exception as e:
+            logger.warning(f"LGBM 모델 메타 읽기 실패 {meta_path}: {e}")
+
+    models.sort(key=lambda m: m.get("trained_at") or "", reverse=True)
+    return models
+
+@app.get("/api/lgbm/predict/{symbol}")
+async def lgbm_predict(symbol: str):
+    require_auth()
+    if lgbm_optimizer is None or lgbm_optimizer.result is None:
+        raise HTTPException(status_code=404, detail="학습된 모델이 없습니다")
+    ohlcv = await kis.get_ohlcv(symbol, "D", 200)
+    pred  = lgbm_optimizer.predict_latest(ohlcv)
+    if pred is None:
+        raise HTTPException(status_code=500, detail="예측 실패")
+    return {**pred, "symbol": symbol}
+
+@app.post("/api/lgbm/load/{symbol}")
+async def lgbm_load(symbol: str):
+    global lgbm_optimizer
+    require_auth()
+    lgbm_optimizer = LGBMOptimizer(kis)
+    ok = lgbm_optimizer.load_model(symbol)
+    if not ok:
+        raise HTTPException(status_code=404, detail=f"{symbol} 저장된 모델 없음")
+    return {"ok": True, "result": lgbm_optimizer.result}

@@ -4,6 +4,7 @@
 - RSIStrategy         : RSI 과매수/과매도
 - BollingerStrategy   : 볼린저 밴드 돌파
 - MACDStrategy        : MACD 시그널 크로스
+- LGBMAIStrategy      : 저장된 LightGBM 모델 예측
 - AutoTrader          : 전략 실행 엔진 (공통)
 """
 
@@ -12,6 +13,7 @@ import logging
 from datetime import datetime
 from typing import Callable, Optional
 from dataclasses import dataclass, field
+from lgbm_optimizer import LGBMOptimizer
 
 logger = logging.getLogger(__name__)
 
@@ -282,6 +284,60 @@ class MACDStrategy:
 
 
 # ════════════════════════════════════════════════════════════
+# 5. LightGBM AI 저장 모델
+# ════════════════════════════════════════════════════════════
+class LGBMAIStrategy:
+    """
+    AI 파라미터 탐색에서 저장한 LightGBM 모델을 불러와 최신 일봉 피처로
+    BUY / SELL / HOLD 신호를 생성합니다.
+    """
+    name = "AI 파라미터"
+
+    def __init__(self, symbol: str, qty: int, kis_api,
+                 min_confidence: float = 0.45):
+        self.symbol = symbol
+        self.qty = qty
+        self.min_confidence = min_confidence
+        self._optimizer = LGBMOptimizer(kis_api)
+        if not self._optimizer.load_model(symbol):
+            raise ValueError(f"{symbol} 저장된 AI 모델이 없습니다")
+
+    def required_bars(self) -> int:
+        return 200
+
+    def analyze(self, ohlcv: list) -> Signal:
+        price = int(ohlcv[-1]["close"]) if ohlcv else 0
+        pred = self._optimizer.predict_latest(ohlcv)
+        if pred is None:
+            return Signal(
+                type="HOLD", symbol=self.symbol, price=price,
+                reason="AI 예측 실패 또는 피처 부족", indicators={}
+            )
+
+        signal = pred["signal"]
+        prob_key = {"BUY": "prob_buy", "SELL": "prob_sell", "HOLD": "prob_hold"}[signal]
+        confidence = float(pred[prob_key])
+        if signal != "HOLD" and confidence < self.min_confidence:
+            reason = (
+                f"AI {signal} 확률 {confidence * 100:.1f}% "
+                f"< 최소 신뢰도 {self.min_confidence * 100:.0f}% → 보류"
+            )
+            signal = "HOLD"
+        else:
+            reason = f"AI 예측 {signal} (신뢰도 {confidence * 100:.1f}%)"
+
+        return Signal(
+            type=signal, symbol=self.symbol, price=price, reason=reason,
+            indicators={
+                "매수확률": round(pred["prob_buy"] * 100, 1),
+                "보유확률": round(pred["prob_hold"] * 100, 1),
+                "매도확률": round(pred["prob_sell"] * 100, 1),
+                "최소신뢰도": round(self.min_confidence * 100, 1),
+            }
+        )
+
+
+# ════════════════════════════════════════════════════════════
 # 전략 레지스트리 (API에서 이름으로 선택)
 # ════════════════════════════════════════════════════════════
 STRATEGY_MAP = {
@@ -289,6 +345,7 @@ STRATEGY_MAP = {
     "rsi":          RSIStrategy,
     "bollinger":    BollingerStrategy,
     "macd":         MACDStrategy,
+    "lgbm_ai":      LGBMAIStrategy,
 }
 
 
