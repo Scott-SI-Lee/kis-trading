@@ -29,11 +29,37 @@ from sklearn.preprocessing import LabelEncoder
 
 from feature_engineering import build_features, make_labels, FEATURE_COLS
 
+try:
+    import xgboost as xgb
+except ImportError:
+    xgb = None
+
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 logger = logging.getLogger(__name__)
 
 MODEL_DIR = Path(__file__).parent / "models"
 MODEL_DIR.mkdir(exist_ok=True)
+
+
+def _json_safe(value):
+    """json.dumps가 처리하지 못하는 numpy/pandas 값을 기본 Python 타입으로 변환"""
+    if isinstance(value, dict):
+        return {str(k): _json_safe(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(v) for v in value]
+    if isinstance(value, tuple):
+        return [_json_safe(v) for v in value]
+    if isinstance(value, np.integer):
+        return int(value)
+    if isinstance(value, np.floating):
+        return float(value)
+    if isinstance(value, np.bool_):
+        return bool(value)
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    if isinstance(value, pd.Timestamp):
+        return value.isoformat()
+    return value
 
 
 # ════════════════════════════════════════════════════════════
@@ -159,6 +185,49 @@ def _objective(trial: optuna.Trial, X: pd.DataFrame, y: pd.Series,
     return float(np.mean(scores)) if scores else 0.0
 
 
+def _cv_macro_f1(model_factory: Callable, X: pd.DataFrame, y: pd.Series,
+                 tscv: TimeSeriesSplit, encode_labels: bool = False) -> dict:
+    """TimeSeriesSplit 교차검증으로 fold별/평균 macro F1 계산"""
+    scores = []
+    skipped = 0
+    for tr_idx, val_idx in tscv.split(X):
+        X_tr, X_val = X.iloc[tr_idx], X.iloc[val_idx]
+        y_tr, y_val = y.iloc[tr_idx], y.iloc[val_idx]
+
+        if len(y_tr.unique()) < 2:
+            skipped += 1
+            continue
+        if set(y_val.unique()) - set(y_tr.unique()):
+            skipped += 1
+            continue
+
+        try:
+            y_fit = y_tr
+            y_score = y_val
+            if encode_labels:
+                encoder = LabelEncoder()
+                y_fit = pd.Series(encoder.fit_transform(y_tr), index=y_tr.index)
+                y_score = pd.Series(encoder.transform(y_val), index=y_val.index)
+
+            model = model_factory()
+            model.fit(X_tr, y_fit)
+            preds = model.predict(X_val)
+            scores.append(float(f1_score(y_score, preds, average="macro", zero_division=0)))
+        except Exception as e:
+            logger.warning(f"CV fold 실패: {e}")
+            skipped += 1
+
+    mean = float(np.mean(scores)) if scores else 0.0
+    std = float(np.std(scores)) if scores else 0.0
+    return {
+        "mean_f1": round(mean, 4),
+        "std_f1": round(std, 4),
+        "folds": [round(s, 4) for s in scores],
+        "used_folds": len(scores),
+        "skipped_folds": skipped,
+    }
+
+
 # ════════════════════════════════════════════════════════════
 # LGBMOptimizer — 메인 클래스
 # ════════════════════════════════════════════════════════════
@@ -233,6 +302,18 @@ class LGBMOptimizer:
             preds_all = self._model.predict(X)
             bt = backtest(df.loc[valid].reset_index(drop=True), preds_all)
 
+            await self._notify(broadcast, "cv", "LightGBM / XGBoost 교차검증 비교 중...")
+            cv_compare = await loop.run_in_executor(
+                None,
+                self._compare_models_cv,
+                df,
+                feat_cols,
+                best_horizon,
+                best_buy_thr,
+                best_sell_thr,
+                self._best_params.copy(),
+            )
+
             # 피처 중요도 Top15
             importance = sorted(
                 zip(feat_cols, self._model.feature_importances_),
@@ -251,10 +332,13 @@ class LGBMOptimizer:
                 "horizon": best_horizon,
                 "buy_threshold": best_buy_thr,
                 "sell_threshold": best_sell_thr,
+                "backtest": bt,
+                "importance": [{"feature": f, "score": int(s)} for f, s in importance],
+                "cv_compare": cv_compare,
             }
-            meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2))
+            meta_path.write_text(json.dumps(_json_safe(meta), ensure_ascii=False, indent=2))
 
-            self._result = {
+            self._result = _json_safe({
                 "symbol":        symbol,
                 "status":        "done",
                 "trained_at":    datetime.now().isoformat(),
@@ -272,8 +356,9 @@ class LGBMOptimizer:
                     "max_depth":       best.params.get("max_depth"),
                 },
                 "backtest":      bt,
+                "cv_compare":    cv_compare,
                 "importance":    [{"feature": f, "score": int(s)} for f, s in importance],
-            }
+            })
 
             await self._notify(broadcast, "done",
                                f"완료! 수익률 {bt['total_return']:+.1f}% | "
@@ -381,6 +466,72 @@ class LGBMOptimizer:
                                     sampler=optuna.samplers.TPESampler(seed=42))
         study.optimize(objective, n_trials=n_trials, show_progress_bar=False)
         return study, best_horizon, best_buy_thr, best_sell_thr
+
+    def _compare_models_cv(self, df, feat_cols, horizon, buy_thr, sell_thr, lgbm_params):
+        labels = make_labels(df, horizon=horizon,
+                             buy_threshold=buy_thr, sell_threshold=sell_thr)
+        valid = labels.notna()
+        X = df.loc[valid, feat_cols]
+        y = labels[valid]
+        tscv = TimeSeriesSplit(n_splits=5)
+
+        lgbm_cv_params = {
+            **lgbm_params,
+            "objective": "multiclass",
+            "num_class": 3,
+            "metric": "multi_logloss",
+            "verbosity": -1,
+        }
+        lgbm_result = _cv_macro_f1(
+            lambda: lgb.LGBMClassifier(**lgbm_cv_params),
+            X, y, tscv
+        )
+
+        result = {
+            "metric": "macro_f1",
+            "split": "TimeSeriesSplit(n_splits=5)",
+            "label_params": {
+                "horizon": horizon,
+                "buy_threshold": round(buy_thr, 4),
+                "sell_threshold": round(sell_thr, 4),
+            },
+            "models": {
+                "lightgbm": lgbm_result,
+            },
+            "winner": "lightgbm",
+        }
+
+        if xgb is None:
+            result["models"]["xgboost"] = {
+                "status": "missing_dependency",
+                "message": "xgboost 패키지가 설치되어 있지 않습니다",
+            }
+            return result
+
+        xgb_params = {
+            "objective": "multi:softprob",
+            "num_class": 3,
+            "eval_metric": "mlogloss",
+            "tree_method": "hist",
+            "n_estimators": min(int(lgbm_params.get("n_estimators", 300)), 600),
+            "learning_rate": float(lgbm_params.get("learning_rate", 0.05)),
+            "max_depth": int(lgbm_params.get("max_depth", 6)),
+            "subsample": float(lgbm_params.get("subsample", 0.8)),
+            "colsample_bytree": float(lgbm_params.get("colsample_bytree", 0.8)),
+            "reg_alpha": float(lgbm_params.get("reg_alpha", 0.0)),
+            "reg_lambda": float(lgbm_params.get("reg_lambda", 1.0)),
+            "random_state": 42,
+            "verbosity": 0,
+        }
+        xgb_result = _cv_macro_f1(
+            lambda: xgb.XGBClassifier(**xgb_params),
+            X, y, tscv, encode_labels=True
+        )
+        result["models"]["xgboost"] = xgb_result
+
+        if xgb_result["mean_f1"] > lgbm_result["mean_f1"]:
+            result["winner"] = "xgboost"
+        return result
 
     async def _notify(self, broadcast, status: str, message: str):
         self._progress["status"] = status

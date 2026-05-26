@@ -330,7 +330,7 @@ class LGBMAIStrategy:
             type=signal, symbol=self.symbol, price=price, reason=reason,
             indicators={
                 "매수확률": round(pred["prob_buy"] * 100, 1),
-                "보유확률": round(pred["prob_hold"] * 100, 1),
+                "HOLD확률": round(pred["prob_hold"] * 100, 1),
                 "매도확률": round(pred["prob_sell"] * 100, 1),
                 "최소신뢰도": round(self.min_confidence * 100, 1),
             }

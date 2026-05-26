@@ -185,6 +185,9 @@ class StockMaster:
     def get_by_code(self, code: str) -> Optional[dict]:
         return self._code_idx.get(code)
 
+    def all_stocks(self) -> list[dict]:
+        return list(self._stocks)
+
     @property
     def total(self) -> int:
         return len(self._stocks)

@@ -151,6 +151,61 @@ class KISApi:
             })
         return list(reversed(result))   # 오래된 것 → 최신 순
 
+    async def get_investor_trend(self, symbol: str, days: int = 5) -> dict:
+        """최근 투자자별 순매수. 외국인 순매수 조건에 사용."""
+        data = await self._get(
+            "/uapi/domestic-stock/v1/quotations/inquire-investor",
+            tr_id="FHKST01010900",
+            params={"FID_COND_MRKT_DIV_CODE": "J", "FID_INPUT_ISCD": symbol},
+        )
+        rows = data.get("output", [])[:max(days, 1)]
+
+        def to_int(v):
+            try:
+                return int(str(v).replace(",", "").strip() or 0)
+            except Exception:
+                return 0
+
+        foreign = [to_int(r.get("frgn_ntby_qty", 0)) for r in rows]
+        personal = [to_int(r.get("prsn_ntby_qty", 0)) for r in rows]
+        institution = [to_int(r.get("orgn_ntby_qty", 0)) for r in rows]
+        return {
+            "symbol": symbol,
+            "days": len(rows),
+            "foreign_net_qty": sum(foreign),
+            "personal_net_qty": sum(personal),
+            "institution_net_qty": sum(institution),
+            "latest_date": rows[0].get("stck_bsop_date", "") if rows else "",
+        }
+
+    async def get_financial_growth(self, symbol: str, quarter: bool = True) -> dict:
+        """최근 재무비율 성장률. 최근 실적 성장 조건에 사용."""
+        data = await self._get(
+            "/uapi/domestic-stock/v1/finance/financial-ratio",
+            tr_id="FHKST66430300",
+            params={
+                "FID_DIV_CLS_CODE": "1" if quarter else "0",
+                "fid_cond_mrkt_div_code": "J",
+                "fid_input_iscd": symbol,
+            },
+        )
+        rows = data.get("output", [])
+        row = rows[0] if rows else {}
+
+        def to_float(v):
+            try:
+                return float(str(v).replace(",", "").strip() or 0)
+            except Exception:
+                return 0.0
+
+        return {
+            "symbol": symbol,
+            "period": row.get("stac_yymm", ""),
+            "sales_growth": to_float(row.get("grs", 0)),
+            "operating_profit_growth": to_float(row.get("bsop_prfi_inrt", 0)),
+            "net_income_growth": to_float(row.get("ntin_inrt", 0)),
+        }
+
     # ── 잔고 조회 (TTTC8434R / VTTC8434R) ──────────────────
     async def get_balance(self) -> dict:
         tr_id = "VTTC8434R" if self.is_mock else "TTTC8434R"

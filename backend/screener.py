@@ -9,6 +9,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Optional
 from strategy import _sma, _ema, _stddev
+from lgbm_optimizer import LGBMOptimizer
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +84,24 @@ class ScreenerCondition:
     use_change: bool = False
     change_min: Optional[float] = None   # % 이상
     change_max: Optional[float] = None   # % 이하
+
+    # 추세/모멘텀
+    use_near_high: bool = False
+    high_days: int = 20
+    high_within_pct: float = 3.0
+    use_above_ma60: bool = False
+
+    # 수급/실적
+    use_foreign: bool = False
+    foreign_days: int = 5
+    use_fundamental: bool = False
+    growth_metric: str = "any"           # any | sales | operating | net
+    growth_min: float = 0.0
+
+    # AI 저장 모델
+    use_ai: bool = False
+    ai_signal: str = "BUY"               # BUY | SELL | HOLD | ANY
+    ai_min_prob: float = 0.45             # 0.0 ~ 1.0
 
 
 # ── 지표 계산 ─────────────────────────────────────────────────
@@ -233,7 +252,31 @@ def screen_stock(symbol: str, name: str, ohlcv: list, current: dict,
         label = f"등락률 {change_pct:+.2f}%"
         matched_conditions.append(label)
 
-    if not matched_conditions:
+    # ── 20일 신고가 근처 ──
+    if cond.use_near_high:
+        if len(ohlcv) < cond.high_days:
+            return None
+        high_n = max(r["high"] for r in ohlcv[-cond.high_days:])
+        distance = (high_n - price) / high_n * 100 if high_n > 0 else 999
+        indicators[f"{cond.high_days}일고가"] = high_n
+        indicators["고가괴리%"] = round(distance, 2)
+        if distance < 0:
+            distance = 0
+        if distance > cond.high_within_pct:
+            return None
+        matched_conditions.append(f"{cond.high_days}일 신고가 {distance:.2f}% 이내")
+
+    # ── 60일선 위 ──
+    if cond.use_above_ma60:
+        ma60 = _sma(closes, 60)
+        if ma60 is None:
+            return None
+        indicators["MA60"] = round(ma60)
+        if price < ma60:
+            return None
+        matched_conditions.append(f"60일선 위 ({round(ma60):,})")
+
+    if not matched_conditions and not (cond.use_ai or cond.use_foreign or cond.use_fundamental):
         return None
 
     return {
@@ -257,11 +300,14 @@ class Screener:
 
     async def run(self, cond: ScreenerCondition,
                   universe: str = "all",
-                  broadcast=None) -> list:
+                  broadcast=None,
+                  targets_override: Optional[dict] = None) -> list:
         """
         universe: "kospi200" | "kosdaq150" | "all"
         """
-        if universe == "kospi200":
+        if targets_override is not None:
+            targets = targets_override
+        elif universe == "kospi200":
             targets = {s[0]: s[1] for s in KOSPI200}
         elif universe == "kosdaq150":
             targets = {s[0]: s[1] for s in KOSDAQ150}
@@ -280,6 +326,9 @@ class Screener:
             cond.macd_slow + 15  if cond.use_macd else 0,
             cond.ma_long + 5     if cond.use_ma_cross else 0,
             cond.volume_avg_days + 5 if cond.use_volume else 0,
+            cond.high_days if cond.use_near_high else 0,
+            65 if cond.use_above_ma60 else 0,
+            200 if cond.use_ai else 0,
             40,
         )
 
@@ -290,6 +339,59 @@ class Screener:
                 ohlcv   = await self.kis.get_ohlcv(symbol, "D", needed)
                 current = await self.kis.get_current_price(symbol)
                 result  = screen_stock(symbol, name, ohlcv, current, cond)
+                if result and cond.use_foreign:
+                    investor = await self.kis.get_investor_trend(symbol, cond.foreign_days)
+                    if investor["foreign_net_qty"] <= 0:
+                        result = None
+                    else:
+                        result["conditions"].append(f"외국인 {cond.foreign_days}일 순매수 +")
+                        result["indicators"]["외국인순매수"] = investor["foreign_net_qty"]
+                if result and cond.use_fundamental:
+                    growth = await self.kis.get_financial_growth(symbol, quarter=True)
+                    growth_values = {
+                        "sales": growth["sales_growth"],
+                        "operating": growth["operating_profit_growth"],
+                        "net": growth["net_income_growth"],
+                    }
+                    if cond.growth_metric == "any":
+                        passed = any(v >= cond.growth_min for v in growth_values.values())
+                        label_value = max(growth_values.values())
+                    else:
+                        label_value = growth_values.get(cond.growth_metric, 0)
+                        passed = label_value >= cond.growth_min
+                    if not passed:
+                        result = None
+                    else:
+                        result["conditions"].append(f"최근 실적 성장 {label_value:+.1f}%")
+                        result["indicators"].update({
+                            "매출성장%": round(growth["sales_growth"], 1),
+                            "영업익성장%": round(growth["operating_profit_growth"], 1),
+                            "순익성장%": round(growth["net_income_growth"], 1),
+                        })
+                if result and cond.use_ai:
+                    ai_result = self._predict_ai(symbol, ohlcv)
+                    if not ai_result:
+                        result = None
+                    else:
+                        signal = ai_result["signal"]
+                        prob = {
+                            "BUY": ai_result["prob_buy"],
+                            "SELL": ai_result["prob_sell"],
+                            "HOLD": ai_result["prob_hold"],
+                        }.get(signal, 0)
+                        if cond.ai_signal != "ANY" and signal != cond.ai_signal:
+                            result = None
+                        elif prob < cond.ai_min_prob:
+                            result = None
+                        else:
+                            result["ai"] = ai_result
+                            result["conditions"].append(f"AI {signal} {prob*100:.1f}%")
+                            result["indicators"].update({
+                                "AI신호": signal,
+                                "AI매수%": round(ai_result["prob_buy"] * 100, 1),
+                                "AI보유%": round(ai_result["prob_hold"] * 100, 1),
+                                "AI매도%": round(ai_result["prob_sell"] * 100, 1),
+                            })
                 if result:
                     results.append(result)
                     if broadcast:
@@ -314,6 +416,12 @@ class Screener:
         if broadcast:
             await broadcast({"type": "screener_done", "count": len(results)})
         return results
+
+    def _predict_ai(self, symbol: str, ohlcv: list) -> Optional[dict]:
+        optimizer = LGBMOptimizer(self.kis)
+        if not optimizer.load_model(symbol):
+            return None
+        return optimizer.predict_latest(ohlcv)
 
     def stop(self):
         self._running = False

@@ -35,7 +35,7 @@ def resolve_env_file(profile: str) -> Path:
 
 # ── 실행 시 프로파일 파싱 (uvicorn 직접 실행 시에도 동작) ──
 _parser = argparse.ArgumentParser(add_help=False)
-_parser.add_argument("--env", default="default",
+_parser.add_argument("--env", default=os.getenv("KIS_ENV_PROFILE", "default"),
                      help="환경 프로파일 (default|local|dev|prod|...)")
 _args, _ = _parser.parse_known_args()
 ENV_PROFILE = _args.env
@@ -75,10 +75,11 @@ app.add_middleware(
 
 # ── 전역 상태 ──────────────────────────────────────────────
 kis: Optional[KISApi] = None
-trader: Optional[AutoTrader] = None
+traders: dict[str, AutoTrader] = {}
 ws_clients: List[WebSocket] = []
 screener_instance: Optional[Screener] = None
 lgbm_optimizer:    Optional[LGBMOptimizer] = None
+lgbm_batch_state: dict = {"running": False, "stop": False}
 
 # ── .env에서 자격증명 로드 (모의/실전 분리) ─────────────────────
 def load_credentials_from_env(mode: str = "mock") -> Optional[dict]:
@@ -150,8 +151,9 @@ class StrategyRequest(BaseModel):
 # ── 인증 ───────────────────────────────────────────────────
 @app.post("/api/auth")
 async def authenticate(req: AuthRequest):
-    global kis, trader
+    global kis
     try:
+        await stop_all_traders()
         kis = KISApi(
             app_key=req.app_key,
             app_secret=req.app_secret,
@@ -159,7 +161,6 @@ async def authenticate(req: AuthRequest):
             is_mock=req.is_mock,
         )
         token = await kis.get_access_token()
-        trader = AutoTrader(kis)
         return {"ok": True, "message": "인증 성공", "token_expires": token["access_token_token_expired"]}
     except Exception as e:
         raise HTTPException(status_code=401, detail=str(e))
@@ -167,6 +168,36 @@ async def authenticate(req: AuthRequest):
 def require_auth():
     if kis is None:
         raise HTTPException(status_code=401, detail="먼저 인증이 필요합니다")
+
+async def stop_all_traders():
+    for symbol, trader in list(traders.items()):
+        try:
+            await trader.stop()
+        except Exception as e:
+            logger.warning(f"{symbol} 자동매매 중지 실패: {e}")
+    traders.clear()
+
+def build_strategy_from_request(req: StrategyRequest):
+    strat_cls = STRATEGY_MAP.get(req.strategy)
+    if strat_cls is None:
+        raise HTTPException(status_code=400, detail=f"알 수 없는 전략: {req.strategy}")
+
+    if req.strategy == "golden_cross":
+        return strat_cls(symbol=req.symbol, qty=req.qty,
+                         short_period=req.short_period, long_period=req.long_period)
+    if req.strategy == "rsi":
+        return strat_cls(symbol=req.symbol, qty=req.qty,
+                         period=req.rsi_period, oversold=req.oversold, overbought=req.overbought)
+    if req.strategy == "bollinger":
+        return strat_cls(symbol=req.symbol, qty=req.qty,
+                         period=req.bb_period, k=req.bb_k)
+    if req.strategy == "macd":
+        return strat_cls(symbol=req.symbol, qty=req.qty,
+                         fast=req.macd_fast, slow=req.macd_slow, signal_period=req.macd_signal)
+    if req.strategy == "lgbm_ai":
+        return strat_cls(symbol=req.symbol, qty=req.qty, kis_api=kis,
+                         min_confidence=req.ai_confidence)
+    raise HTTPException(status_code=400, detail="지원하지 않는 전략")
 
 # ── 종목 검색 (전체 종목 인메모리 검색) ────────────────────────
 @app.get("/api/search")
@@ -237,34 +268,24 @@ async def get_orders():
 @app.post("/api/strategy/start")
 async def start_strategy(req: StrategyRequest):
     require_auth()
+    symbol = req.symbol.strip()
+    if not symbol:
+        raise HTTPException(status_code=400, detail="종목코드가 필요합니다")
+    req.symbol = symbol
+
+    strategy = build_strategy_from_request(req)
+    trader = traders.get(symbol)
     if trader is None:
-        raise HTTPException(status_code=400, detail="트레이더 초기화 실패")
-
-    strat_cls = STRATEGY_MAP.get(req.strategy)
-    if strat_cls is None:
-        raise HTTPException(status_code=400, detail=f"알 수 없는 전략: {req.strategy}")
-
-    # 전략별 파라미터 매핑
-    if req.strategy == "golden_cross":
-        strategy = strat_cls(symbol=req.symbol, qty=req.qty,
-                             short_period=req.short_period, long_period=req.long_period)
-    elif req.strategy == "rsi":
-        strategy = strat_cls(symbol=req.symbol, qty=req.qty,
-                             period=req.rsi_period, oversold=req.oversold, overbought=req.overbought)
-    elif req.strategy == "bollinger":
-        strategy = strat_cls(symbol=req.symbol, qty=req.qty,
-                             period=req.bb_period, k=req.bb_k)
-    elif req.strategy == "macd":
-        strategy = strat_cls(symbol=req.symbol, qty=req.qty,
-                             fast=req.macd_fast, slow=req.macd_slow, signal_period=req.macd_signal)
-    elif req.strategy == "lgbm_ai":
-        strategy = strat_cls(symbol=req.symbol, qty=req.qty, kis_api=kis,
-                             min_confidence=req.ai_confidence)
-    else:
-        raise HTTPException(status_code=400, detail="지원하지 않는 전략")
+        trader = AutoTrader(kis)
+        traders[symbol] = trader
 
     await trader.start(strategy, req.check_interval, broadcast)
-    return {"ok": True, "message": f"{req.symbol} {strategy.name} 자동매매 시작"}
+    return {
+        "ok": True,
+        "message": f"{symbol} {strategy.name} 자동매매 시작",
+        "symbol": symbol,
+        "active_count": sum(1 for t in traders.values() if t.status().get("running")),
+    }
 
 @app.get("/api/strategy/list")
 async def list_strategies():
@@ -278,21 +299,38 @@ async def list_strategies():
 
 @app.post("/api/strategy/stop")
 async def stop_strategy():
-    if trader:
-        await trader.stop()
-    return {"ok": True, "message": "자동매매 중지"}
+    stopped = len(traders)
+    await stop_all_traders()
+    return {"ok": True, "message": "자동매매 전체 중지", "stopped": stopped}
+
+@app.post("/api/strategy/stop/{symbol}")
+async def stop_strategy_symbol(symbol: str):
+    trader = traders.pop(symbol, None)
+    if trader is None:
+        raise HTTPException(status_code=404, detail=f"{symbol} 실행 중인 자동매매가 없습니다")
+    await trader.stop()
+    return {"ok": True, "message": f"{symbol} 자동매매 중지", "symbol": symbol}
 
 @app.get("/api/strategy/status")
 async def strategy_status():
-    if trader is None:
-        return {"running": False}
-    return trader.status()
+    statuses = [trader.status() for trader in traders.values()]
+    running_statuses = [s for s in statuses if s.get("running")]
+    primary = running_statuses[0] if running_statuses else (statuses[0] if statuses else {})
+    return {
+        **primary,
+        "running": bool(running_statuses),
+        "traders": statuses,
+        "active_count": len(running_statuses),
+        "total_count": len(statuses),
+    }
 
 @app.get("/api/strategy/log")
 async def strategy_log():
-    if trader is None:
-        return []
-    return trader.get_log()
+    logs = []
+    for trader in traders.values():
+        logs.extend(trader.get_log())
+    logs.sort(key=lambda item: item.get("time", ""), reverse=True)
+    return logs[:300]
 
 # ── WebSocket 브로드캐스트 ──────────────────────────────────
 async def broadcast(message: dict):
@@ -333,7 +371,7 @@ async def price_ws(websocket: WebSocket, symbol: str):
 @app.on_event("startup")
 async def auto_auth_from_env():
     """서버 시작 시 .env 자동 인증 + 종목 마스터 로드"""
-    global kis, trader
+    global kis
 
     # 종목 마스터 백그라운드 로드 (인증과 병렬)
     asyncio.create_task(stock_master.ensure_loaded())
@@ -345,7 +383,6 @@ async def auto_auth_from_env():
         try:
             kis = KISApi(**creds)
             await kis.get_access_token()
-            trader = AutoTrader(kis)
             mode_label = "모의투자" if creds["is_mock"] else "실전투자"
             logger.info(f"✅ .env 자동 인증 완료 ({mode_label} / {creds['account_no']})")
         except Exception as e:
@@ -377,7 +414,7 @@ class SwitchModeRequest(BaseModel):
 
 @app.post("/api/switch-mode")
 async def switch_mode(req: SwitchModeRequest):
-    global kis, trader
+    global kis
     if req.mode not in ("mock", "real"):
         raise HTTPException(status_code=400, detail="mode는 mock 또는 real 이어야 합니다")
     creds = load_credentials_from_env(req.mode)
@@ -387,11 +424,9 @@ async def switch_mode(req: SwitchModeRequest):
             detail=f".env에 {'모의투자' if req.mode == 'mock' else '실전투자'} 계좌 설정이 없습니다"
         )
     try:
-        if trader and trader._running:
-            await trader.stop()
+        await stop_all_traders()
         kis = KISApi(**creds)
         await kis.get_access_token()
-        trader = AutoTrader(kis)
         mode_label = "모의투자" if creds["is_mock"] else "실전투자"
         logger.info(f"🔄 계좌 전환: {mode_label} ({creds['account_no']})")
         return {
@@ -443,6 +478,21 @@ class ScreenerRequest(BaseModel):
     use_change: bool = False
     change_min: Optional[float] = None
     change_max: Optional[float] = None
+    # 추세/모멘텀
+    use_near_high: bool = False
+    high_days: int = 20
+    high_within_pct: float = 3.0
+    use_above_ma60: bool = False
+    # 수급/실적
+    use_foreign: bool = False
+    foreign_days: int = 5
+    use_fundamental: bool = False
+    growth_metric: str = "any"
+    growth_min: float = 0.0
+    # AI 저장 모델
+    use_ai: bool = False
+    ai_signal: str = "BUY"
+    ai_min_prob: float = 0.45
 
 @app.post("/api/screener/run")
 async def run_screener(req: ScreenerRequest):
@@ -466,14 +516,53 @@ async def run_screener(req: ScreenerRequest):
         volume_avg_days=req.volume_avg_days,
         use_change=req.use_change, change_min=req.change_min,
         change_max=req.change_max,
+        use_near_high=req.use_near_high, high_days=req.high_days,
+        high_within_pct=req.high_within_pct, use_above_ma60=req.use_above_ma60,
+        use_foreign=req.use_foreign, foreign_days=req.foreign_days,
+        use_fundamental=req.use_fundamental, growth_metric=req.growth_metric,
+        growth_min=req.growth_min,
+        use_ai=req.use_ai, ai_signal=req.ai_signal, ai_min_prob=req.ai_min_prob,
     )
+    targets_override = None
+    if req.universe == "all":
+        await stock_master.ensure_loaded()
+        if stock_master.loaded:
+            targets_override = {
+                s["symbol"]: s["name"]
+                for s in stock_master.all_stocks()
+                if s.get("symbol") and s.get("name")
+            }
+    if req.use_ai:
+        model_dir = Path(__file__).parent / "models"
+        ai_symbols = {
+            p.name.replace("_meta.json", "")
+            for p in model_dir.glob("*_meta.json")
+            if (model_dir / p.name.replace("_meta.json", "_lgbm.txt")).exists()
+        }
+        if targets_override is None:
+            base_targets = (
+                {s[0]: s[1] for s in __import__("screener").KOSPI200}
+                if req.universe == "kospi200"
+                else {s[0]: s[1] for s in __import__("screener").KOSDAQ150}
+                if req.universe == "kosdaq150"
+                else dict(__import__("screener").ALL_STOCKS)
+            )
+            targets_override = base_targets
+        targets_override = {
+            symbol: name for symbol, name in targets_override.items()
+            if symbol in ai_symbols
+        }
+
     # 비동기 백그라운드 실행
-    asyncio.create_task(screener_instance.run(cond, req.universe, broadcast))
-    total = len([s for s in (
-        list(__import__("screener").KOSPI200) if req.universe == "kospi200"
-        else list(__import__("screener").KOSDAQ150) if req.universe == "kosdaq150"
-        else list(__import__("screener").ALL_STOCKS.items())
-    )])
+    asyncio.create_task(screener_instance.run(cond, req.universe, broadcast, targets_override))
+    if targets_override is not None:
+        total = len(targets_override)
+    else:
+        total = len([s for s in (
+            list(__import__("screener").KOSPI200) if req.universe == "kospi200"
+            else list(__import__("screener").KOSDAQ150) if req.universe == "kosdaq150"
+            else list(__import__("screener").ALL_STOCKS.items())
+        )])
     return {"ok": True, "message": "스크리닝 시작", "total": total}
 
 @app.post("/api/screener/stop")
@@ -503,10 +592,16 @@ class LGBMRequest(BaseModel):
     n_trials: int = 50
     ohlcv_count: int = 500
 
+class LGBMBatchRequest(BaseModel):
+    n_trials: int = 50
+    ohlcv_count: int = 500
+
 @app.post("/api/lgbm/run")
 async def lgbm_run(req: LGBMRequest):
     global lgbm_optimizer
     require_auth()
+    if lgbm_batch_state.get("running"):
+        raise HTTPException(status_code=400, detail="이미 저장 모델 전체 재분석이 실행 중입니다")
     if lgbm_optimizer and lgbm_optimizer.is_running:
         raise HTTPException(status_code=400, detail="이미 최적화가 실행 중입니다")
     lgbm_optimizer = LGBMOptimizer(kis)
@@ -518,12 +613,25 @@ async def lgbm_run(req: LGBMRequest):
 
 @app.post("/api/lgbm/stop")
 async def lgbm_stop():
+    lgbm_batch_state["stop"] = True
     if lgbm_optimizer:
         lgbm_optimizer.stop()
     return {"ok": True}
 
 @app.get("/api/lgbm/progress")
 async def lgbm_progress():
+    if lgbm_batch_state.get("running"):
+        current = lgbm_optimizer.progress.copy() if lgbm_optimizer else {}
+        return {
+            **current,
+            "status": lgbm_batch_state.get("status", current.get("status", "running")),
+            "message": lgbm_batch_state.get("message", current.get("message", "")),
+            "batch_index": lgbm_batch_state.get("index", 0),
+            "batch_total": lgbm_batch_state.get("total", 0),
+            "batch_done": lgbm_batch_state.get("done", 0),
+            "batch_failed": lgbm_batch_state.get("failed", 0),
+            "symbol": lgbm_batch_state.get("symbol", current.get("symbol")),
+        }
     if lgbm_optimizer is None:
         return {"status": "idle", "trial": 0, "total": 0, "best_score": 0}
     return lgbm_optimizer.progress
@@ -535,7 +643,16 @@ async def lgbm_result():
     return lgbm_optimizer.result or {"status": "idle"}
 
 @app.get("/api/lgbm/models")
-async def lgbm_models():
+async def lgbm_models(include_prediction: bool = False):
+    models = _saved_lgbm_models()
+    if include_prediction and kis is not None:
+        await _attach_lgbm_predictions(models)
+    elif include_prediction:
+        for model in models:
+            model["prediction_status"] = "auth_required"
+    return models
+
+def _saved_lgbm_models():
     model_dir = Path(__file__).parent / "models"
     if not model_dir.exists():
         return []
@@ -562,6 +679,184 @@ async def lgbm_models():
 
     models.sort(key=lambda m: m.get("trained_at") or "", reverse=True)
     return models
+
+async def _attach_lgbm_predictions(models: list[dict]):
+    for model in models:
+        if not model.get("has_model"):
+            model["prediction_status"] = "missing_model"
+            continue
+
+        symbol = model.get("symbol")
+        try:
+            model.update(await _predict_saved_lgbm_model(symbol))
+        except Exception as e:
+            logger.warning(f"LGBM 현재 예측 실패 {symbol}: {e}")
+            model["prediction_status"] = "error"
+            model["prediction_error"] = str(e)
+
+async def _predict_saved_lgbm_model(symbol: str) -> dict:
+    require_auth()
+    optimizer = LGBMOptimizer(kis)
+    if not optimizer.load_model(symbol):
+        return {"prediction_status": "load_failed"}
+
+    ohlcv = await kis.get_ohlcv(symbol, "D", 200)
+    pred = optimizer.predict_latest(ohlcv)
+    if pred is None:
+        return {"prediction_status": "predict_failed"}
+
+    return {"prediction_status": "ok", "prediction": pred}
+
+@app.get("/api/lgbm/saved-predict/{symbol}")
+async def lgbm_saved_predict(symbol: str):
+    return await _predict_saved_lgbm_model(symbol)
+
+@app.post("/api/lgbm/rerun-saved")
+async def lgbm_rerun_saved(req: LGBMBatchRequest):
+    global lgbm_optimizer
+    require_auth()
+    if lgbm_batch_state.get("running"):
+        raise HTTPException(status_code=400, detail="이미 저장 모델 전체 재분석이 실행 중입니다")
+    if lgbm_optimizer and lgbm_optimizer.is_running:
+        raise HTTPException(status_code=400, detail="이미 최적화가 실행 중입니다")
+
+    symbols = [m["symbol"] for m in _saved_lgbm_models() if m.get("has_model")]
+    if not symbols:
+        raise HTTPException(status_code=404, detail="재분석할 저장 모델이 없습니다")
+
+    lgbm_batch_state.clear()
+    lgbm_batch_state.update({
+        "running": True,
+        "stop": False,
+        "status": "running",
+        "message": f"저장 모델 전체 재분석 시작 (총 {len(symbols)}개)",
+        "index": 0,
+        "total": len(symbols),
+        "done": 0,
+        "failed": 0,
+        "symbol": None,
+        "last_symbol": None,
+        "errors": [],
+    })
+
+    asyncio.create_task(_run_saved_lgbm_batch(symbols, req.n_trials, req.ohlcv_count))
+    return {
+        "ok": True,
+        "message": f"저장 모델 {len(symbols)}개 재분석 시작",
+        "symbols": symbols,
+        "n_trials": req.n_trials,
+        "ohlcv_count": req.ohlcv_count,
+    }
+
+async def _run_saved_lgbm_batch(symbols: list[str], n_trials: int, ohlcv_count: int):
+    global lgbm_optimizer
+    total = len(symbols)
+    last_symbol = None
+
+    try:
+        for idx, symbol in enumerate(symbols, start=1):
+            if lgbm_batch_state.get("stop"):
+                break
+
+            lgbm_batch_state.update({
+                "index": idx,
+                "symbol": symbol,
+                "status": "running",
+                "message": f"[{idx}/{total}] {symbol} 재분석 중...",
+            })
+            await broadcast({
+                "type": "lgbm",
+                "status": "batch",
+                "message": lgbm_batch_state["message"],
+                "progress": {
+                    "status": "batch",
+                    "trial": 0,
+                    "total": n_trials,
+                    "best_score": 0,
+                    "symbol": symbol,
+                    "batch_index": idx,
+                    "batch_total": total,
+                    "batch_done": lgbm_batch_state["done"],
+                    "batch_failed": lgbm_batch_state["failed"],
+                },
+            })
+
+            async def batch_broadcast(message: dict):
+                msg = message.copy()
+                progress = (msg.get("progress") or {}).copy()
+                progress.update({
+                    "batch_index": idx,
+                    "batch_total": total,
+                    "batch_done": lgbm_batch_state.get("done", 0),
+                    "batch_failed": lgbm_batch_state.get("failed", 0),
+                    "symbol": symbol,
+                })
+                msg["progress"] = progress
+                msg["message"] = f"[{idx}/{total}] {msg.get('message', '')}"
+                if msg.get("status") == "done" and idx < total:
+                    msg["status"] = "batch_item_done"
+                await broadcast(msg)
+
+            lgbm_optimizer = LGBMOptimizer(kis)
+            await lgbm_optimizer.run(symbol, n_trials, ohlcv_count, batch_broadcast)
+
+            result = lgbm_optimizer.result or {}
+            if result.get("status") == "done":
+                lgbm_batch_state["done"] += 1
+                last_symbol = symbol
+                lgbm_batch_state["last_symbol"] = symbol
+            else:
+                lgbm_batch_state["failed"] += 1
+                lgbm_batch_state["errors"].append({
+                    "symbol": symbol,
+                    "message": result.get("message", "알 수 없는 오류"),
+                })
+
+        stopped = lgbm_batch_state.get("stop")
+        status = "idle" if stopped else "done"
+        message = (
+            f"저장 모델 전체 재분석 중지 · 완료 {lgbm_batch_state['done']}개 / 실패 {lgbm_batch_state['failed']}개"
+            if stopped else
+            f"저장 모델 전체 재분석 완료 · 완료 {lgbm_batch_state['done']}개 / 실패 {lgbm_batch_state['failed']}개"
+        )
+        lgbm_batch_state.update({"status": status, "message": message})
+        await broadcast({
+            "type": "lgbm",
+            "status": "done" if not stopped else "idle",
+            "message": message,
+            "progress": {
+                "status": status,
+                "trial": n_trials,
+                "total": n_trials,
+                "best_score": (lgbm_optimizer.progress or {}).get("best_score", 0) if lgbm_optimizer else 0,
+                "symbol": last_symbol,
+                "batch_index": lgbm_batch_state.get("index", 0),
+                "batch_total": total,
+                "batch_done": lgbm_batch_state["done"],
+                "batch_failed": lgbm_batch_state["failed"],
+            },
+        })
+    except Exception as e:
+        logger.error(f"LGBM 저장 모델 전체 재분석 오류: {e}", exc_info=True)
+        lgbm_batch_state.update({"status": "error", "message": f"전체 재분석 오류: {e}"})
+        await broadcast({
+            "type": "lgbm",
+            "status": "error",
+            "message": lgbm_batch_state["message"],
+            "progress": {
+                "status": "error",
+                "trial": 0,
+                "total": n_trials,
+                "best_score": 0,
+                "symbol": lgbm_batch_state.get("symbol"),
+                "batch_index": lgbm_batch_state.get("index", 0),
+                "batch_total": total,
+                "batch_done": lgbm_batch_state.get("done", 0),
+                "batch_failed": lgbm_batch_state.get("failed", 0),
+            },
+        })
+    finally:
+        lgbm_batch_state["running"] = False
 
 @app.get("/api/lgbm/predict/{symbol}")
 async def lgbm_predict(symbol: str):
