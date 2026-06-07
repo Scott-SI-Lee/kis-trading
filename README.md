@@ -139,6 +139,14 @@ python3 -m http.server 3000
 - 실시간 진행률 표시 및 결과 테이블
 - 조건 충족 종목에서 바로 차트 조회 가능
 
+### 장중 급등주 AI 엔진
+- 1분봉 기준으로 향후 15분 내 현재가 대비 +2% 도달 여부를 Binary Classification으로 학습
+- 거래대금/거래량 급증, VWAP 괴리, RSI, MACD, 볼린저밴드, 신고가 돌파, 시장 상황, 호가 불균형 피처 반영
+- TimeSeriesSplit 기반 Walk Forward Validation으로 미래 데이터 누수와 랜덤 셔플 방지
+- Optuna 목표를 Accuracy가 아닌 Profit Factor, Sharpe Ratio, MDD, 승률 조합으로 최적화
+- AI 확률에 거래대금 점수와 돌파 점수를 곱해 최종 점수를 만들고 저장 모델 보유 종목을 실시간 랭킹
+- 익절/손절, 트레일링 스탑, 15분 시간청산 전략별 백테스트 결과 비교
+
 ---
 
 ## 📡 API 엔드포인트
@@ -162,6 +170,11 @@ python3 -m http.server 3000
 | `POST` | `/api/screener/stop` | 스크리닝 중지 |
 | `GET` | `/api/screener/progress` | 스크리닝 진행률 |
 | `GET` | `/api/screener/result` | 스크리닝 결과 |
+| `POST` | `/api/intraday-ai/train` | 장중 급등주 AI 모델 학습 |
+| `GET` | `/api/intraday-ai/models` | 저장된 장중 AI 모델 목록 |
+| `GET` | `/api/intraday-ai/predict/{symbol}` | 저장된 장중 AI 모델로 최신 1분봉 스코어링 |
+| `POST` | `/api/intraday-ai/rank` | 저장 모델 보유 종목 실시간 랭킹 |
+| `GET` | `/api/intraday-ai/rank/result` | 최근 장중 AI 랭킹 결과 |
 | `WS` | `/ws` | 실시간 알림 WebSocket |
 | `WS` | `/ws/price/{symbol}` | 실시간 시세 WebSocket |
 

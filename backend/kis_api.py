@@ -121,6 +121,9 @@ class KISApi:
             "high": int(o.get("stck_hgpr", 0)),
             "low": int(o.get("stck_lwpr", 0)),
             "open": int(o.get("stck_oprc", 0)),
+            "stock_status_code": o.get("iscd_stat_cls_code", ""),
+            "management_issue_code": o.get("mang_issu_cls_code", ""),
+            "trading_halt_yn": o.get("trht_yn", ""),
             "timestamp": datetime.now().isoformat(),
         }
 
@@ -150,6 +153,88 @@ class KISApi:
                 "volume": int(row.get("acml_vol", 0)),
             })
         return list(reversed(result))   # 오래된 것 → 최신 순
+
+    # ── 당일 분봉 OHLCV (FHKST03010200) ────────────────────
+    async def get_intraday_ohlcv(self, symbol: str, count: int = 120,
+                                 input_hour: str = "") -> list:
+        """
+        국내주식 당일 분봉 조회.
+        KIS 문서의 주식당일분봉조회(inquire-time-itemchartprice)를 사용합니다.
+        """
+        now_hhmmss = input_hour or datetime.now().strftime("%H%M%S")
+        data = await self._get(
+            "/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice",
+            tr_id="FHKST03010200",
+            params={
+                "FID_COND_MRKT_DIV_CODE": "J",
+                "FID_INPUT_ISCD": symbol,
+                "FID_INPUT_HOUR_1": now_hhmmss,
+                "FID_PW_DATA_INCU_YN": "N",
+            },
+        )
+
+        def to_int(row: dict, *keys: str) -> int:
+            for key in keys:
+                value = row.get(key)
+                if value not in (None, ""):
+                    try:
+                        return int(float(str(value).replace(",", "")))
+                    except Exception:
+                        pass
+            return 0
+
+        rows = data.get("output2") or data.get("output") or []
+        result = []
+        today = datetime.now().strftime("%Y%m%d")
+        for row in rows[:count]:
+            date = row.get("stck_bsop_date") or row.get("bsop_date") or today
+            time = row.get("stck_cntg_hour") or row.get("cntg_hour") or row.get("stck_cntg_time") or ""
+            close = to_int(row, "stck_prpr", "stck_clpr", "close")
+            open_price = to_int(row, "stck_oprc", "open") or close
+            high = to_int(row, "stck_hgpr", "high") or close
+            low = to_int(row, "stck_lwpr", "low") or close
+            volume = to_int(row, "cntg_vol", "acml_vol", "volume")
+            result.append({
+                "date": date,
+                "time": time,
+                "datetime": f"{date}{time}",
+                "open": open_price,
+                "high": high,
+                "low": low,
+                "close": close,
+                "volume": volume,
+                "turnover": close * volume,
+            })
+        return list(reversed(result))
+
+    # ── 현재 호가/예상체결 (FHKST01010200) ───────────────────
+    async def get_orderbook(self, symbol: str) -> dict:
+        data = await self._get(
+            "/uapi/domestic-stock/v1/quotations/inquire-asking-price-exp-ccn",
+            tr_id="FHKST01010200",
+            params={"FID_COND_MRKT_DIV_CODE": "J", "FID_INPUT_ISCD": symbol},
+        )
+        output = data.get("output1") or {}
+
+        def to_int(*keys: str) -> int:
+            for key in keys:
+                value = output.get(key)
+                if value not in (None, ""):
+                    try:
+                        return int(float(str(value).replace(",", "")))
+                    except Exception:
+                        pass
+            return 0
+
+        total_bid = to_int("total_bidp_rsqn", "total_bidp잔량", "total_bid_qty")
+        total_ask = to_int("total_askp_rsqn", "total_askp잔량", "total_ask_qty")
+        return {
+            "symbol": symbol,
+            "total_bid_qty": total_bid,
+            "total_ask_qty": total_ask,
+            "bid_ask_ratio": (total_bid / total_ask) if total_ask else 0,
+            "timestamp": datetime.now().isoformat(),
+        }
 
     async def get_investor_trend(self, symbol: str, days: int = 5) -> dict:
         """최근 투자자별 순매수. 외국인 순매수 조건에 사용."""

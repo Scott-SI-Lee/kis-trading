@@ -54,6 +54,7 @@ from strategy import AutoTrader
 from screener import Screener, ScreenerCondition, ALL_STOCKS
 from stock_master import stock_master, schedule_daily_refresh
 from lgbm_optimizer import LGBMOptimizer
+from intraday_ai import IntradayAIEngine, MODEL_DIR as INTRADAY_MODEL_DIR, rank_candidates
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -80,6 +81,8 @@ ws_clients: List[WebSocket] = []
 screener_instance: Optional[Screener] = None
 lgbm_optimizer:    Optional[LGBMOptimizer] = None
 lgbm_batch_state: dict = {"running": False, "stop": False}
+intraday_ai: Optional[IntradayAIEngine] = None
+intraday_rank_state: dict = {"running": False, "stop": False, "result": []}
 
 # ── .env에서 자격증명 로드 (모의/실전 분리) ─────────────────────
 def load_credentials_from_env(mode: str = "mock") -> Optional[dict]:
@@ -437,14 +440,6 @@ async def switch_mode(req: SwitchModeRequest):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-if __name__ == "__main__":
-    import uvicorn
-    import sys
-    # reload=True 일 때 argparse가 uvicorn 인수와 충돌하지 않도록
-    # --env 인수는 이미 위에서 파싱 완료
-    logger.info(f"🚀 서버 시작 | 프로파일: [{ENV_PROFILE}] | http://0.0.0.0:8000")
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
 
 # ── 스크리너 ────────────────────────────────────────────────
 class ScreenerRequest(BaseModel):
@@ -878,3 +873,202 @@ async def lgbm_load(symbol: str):
     if not ok:
         raise HTTPException(status_code=404, detail=f"{symbol} 저장된 모델 없음")
     return {"ok": True, "result": lgbm_optimizer.result}
+
+# ── 장중 급등주 AI 엔진 ─────────────────────────────────────
+class IntradayAITrainRequest(BaseModel):
+    symbol: str
+    n_trials: int = 50
+    bars: Optional[List[dict]] = None
+    ohlcv_count: int = 240
+    market_context: Optional[dict] = None
+    orderbook: Optional[dict] = None
+
+class IntradayAIRankRequest(BaseModel):
+    universe: str = "all"          # all | kospi200 | kosdaq150 | saved
+    limit: int = 20
+    max_symbols: int = 80          # API 호출 제한 보호용
+    min_probability: float = 0.75
+    require_breakout_15m: bool = True
+    require_turnover_growth: bool = True
+
+def _saved_intraday_models() -> list[dict]:
+    if not INTRADAY_MODEL_DIR.exists():
+        return []
+    models = []
+    for meta_path in INTRADAY_MODEL_DIR.glob("*_intraday_meta.json"):
+        try:
+            meta = json.loads(meta_path.read_text())
+            symbol = meta.get("symbol") or meta_path.name.replace("_intraday_meta.json", "")
+            stock = stock_master.get_by_code(symbol) if stock_master.loaded else None
+            models.append({
+                "symbol": symbol,
+                "name": stock["name"] if stock else ALL_STOCKS.get(symbol, ""),
+                "trained_at": meta.get("trained_at"),
+                "entry_threshold": meta.get("entry_threshold"),
+                "best_exit_strategy": meta.get("best_exit_strategy"),
+                "precision": meta.get("precision"),
+                "recall": meta.get("recall"),
+                "backtests": meta.get("backtests"),
+                "has_model": (INTRADAY_MODEL_DIR / f"{symbol}_intraday_lgbm.txt").exists(),
+            })
+        except Exception as e:
+            logger.warning(f"Intraday AI 메타 읽기 실패 {meta_path}: {e}")
+    models.sort(key=lambda m: m.get("trained_at") or "", reverse=True)
+    return models
+
+def _intraday_targets(universe: str, max_symbols: int) -> dict:
+    saved_symbols = {m["symbol"] for m in _saved_intraday_models() if m.get("has_model")}
+    if universe == "saved":
+        base = {symbol: (stock_master.get_by_code(symbol) or {}).get("name", ALL_STOCKS.get(symbol, "")) for symbol in saved_symbols}
+    elif universe == "kospi200":
+        base = {s[0]: s[1] for s in __import__("screener").KOSPI200}
+    elif universe == "kosdaq150":
+        base = {s[0]: s[1] for s in __import__("screener").KOSDAQ150}
+    else:
+        if stock_master.loaded:
+            base = {s["symbol"]: s["name"] for s in stock_master.all_stocks()}
+        else:
+            base = dict(__import__("screener").ALL_STOCKS)
+    filtered = {symbol: name for symbol, name in base.items() if symbol in saved_symbols}
+    return dict(list(filtered.items())[:max_symbols])
+
+def _is_tradeable_current(current: dict) -> bool:
+    if current.get("price", 0) <= 0 or current.get("volume", 0) <= 0:
+        return False
+    if str(current.get("trading_halt_yn", "")).upper() == "Y":
+        return False
+    management_code = str(current.get("management_issue_code", "")).strip()
+    if management_code and management_code not in ("0", "00", "N"):
+        return False
+    return True
+
+@app.post("/api/intraday-ai/train")
+async def intraday_ai_train(req: IntradayAITrainRequest):
+    global intraday_ai
+    require_auth()
+    if intraday_ai and intraday_ai.is_running:
+        raise HTTPException(status_code=400, detail="이미 장중 AI 학습이 실행 중입니다")
+
+    bars = req.bars
+    orderbook = req.orderbook
+    if bars is None:
+        bars = await kis.get_intraday_ohlcv(req.symbol, req.ohlcv_count)
+    if orderbook is None:
+        try:
+            orderbook = await kis.get_orderbook(req.symbol)
+        except Exception as e:
+            logger.debug(f"호가 조회 실패 {req.symbol}: {e}")
+            orderbook = {}
+
+    intraday_ai = IntradayAIEngine()
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(
+        None,
+        lambda: intraday_ai.train(
+            req.symbol,
+            bars,
+            req.n_trials,
+            req.market_context,
+            orderbook,
+            None,
+        ),
+    )
+    await broadcast({"type": "intraday_ai", "status": result.get("status"), "symbol": req.symbol, "result": result})
+    return result
+
+@app.get("/api/intraday-ai/models")
+async def intraday_ai_models():
+    await stock_master.ensure_loaded()
+    return _saved_intraday_models()
+
+@app.get("/api/intraday-ai/predict/{symbol}")
+async def intraday_ai_predict(symbol: str, count: int = 120):
+    require_auth()
+    engine = IntradayAIEngine()
+    if not engine.load_model(symbol):
+        raise HTTPException(status_code=404, detail=f"{symbol} 저장된 장중 AI 모델 없음")
+    bars = await kis.get_intraday_ohlcv(symbol, count)
+    orderbook = {}
+    try:
+        orderbook = await kis.get_orderbook(symbol)
+    except Exception as e:
+        logger.debug(f"호가 조회 실패 {symbol}: {e}")
+    score = engine.predict_latest(bars, orderbook=orderbook)
+    if score is None:
+        raise HTTPException(status_code=500, detail="장중 AI 예측 실패")
+    return {"symbol": symbol, "score": score}
+
+@app.post("/api/intraday-ai/rank")
+async def intraday_ai_rank(req: IntradayAIRankRequest):
+    require_auth()
+    await stock_master.ensure_loaded()
+    targets = _intraday_targets(req.universe, req.max_symbols)
+    candidates = []
+
+    for idx, (symbol, name) in enumerate(targets.items(), start=1):
+        try:
+            current = await kis.get_current_price(symbol)
+            if not _is_tradeable_current(current):
+                continue
+
+            engine = IntradayAIEngine()
+            if not engine.load_model(symbol):
+                continue
+            bars = await kis.get_intraday_ohlcv(symbol, 120)
+            try:
+                orderbook = await kis.get_orderbook(symbol)
+            except Exception:
+                orderbook = {}
+            score = engine.predict_latest(bars, orderbook=orderbook)
+            if not score:
+                continue
+
+            features = score.get("features", {})
+            if score["probability"] < req.min_probability:
+                continue
+            if req.require_turnover_growth and features.get("turnover_growth", 0) <= 0:
+                continue
+            if req.require_breakout_15m and int(features.get("break_15m_high", 0)) != 1:
+                continue
+
+            item = {
+                "symbol": symbol,
+                "name": name or current.get("name", ""),
+                "price": current.get("price"),
+                "change_pct": current.get("change_pct"),
+                "volume": current.get("volume"),
+                "score": score,
+                "conditions": [
+                    f"AI확률 {score['probability'] * 100:.1f}%",
+                    f"최종점수 {score['final_score']:.3f}",
+                    "최근 15분 신고가 돌파" if int(features.get("break_15m_high", 0)) == 1 else "15분 돌파 없음",
+                ],
+            }
+            candidates.append(item)
+            await broadcast({"type": "intraday_ai_hit", "data": item})
+        except Exception as e:
+            logger.debug(f"장중 AI 랭킹 오류 {symbol}: {e}")
+
+        await broadcast({
+            "type": "intraday_ai_progress",
+            "done": idx,
+            "total": len(targets),
+            "pct": round(idx / len(targets) * 100) if targets else 100,
+        })
+        await asyncio.sleep(0.12)
+
+    ranked = rank_candidates(candidates, req.limit)
+    intraday_rank_state.update({"running": False, "result": ranked})
+    await broadcast({"type": "intraday_ai_done", "count": len(ranked), "data": ranked})
+    return {"ok": True, "total": len(targets), "count": len(ranked), "result": ranked}
+
+@app.get("/api/intraday-ai/rank/result")
+async def intraday_ai_rank_result():
+    return intraday_rank_state.get("result", [])
+
+if __name__ == "__main__":
+    import uvicorn
+    # reload=True 일 때 argparse가 uvicorn 인수와 충돌하지 않도록
+    # --env 인수는 이미 위에서 파싱 완료
+    logger.info(f"🚀 서버 시작 | 프로파일: [{ENV_PROFILE}] | http://0.0.0.0:8000")
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
