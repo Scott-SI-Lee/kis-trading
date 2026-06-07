@@ -170,6 +170,7 @@ class KISApi:
                 "FID_INPUT_ISCD": symbol,
                 "FID_INPUT_HOUR_1": now_hhmmss,
                 "FID_PW_DATA_INCU_YN": "N",
+                "FID_ETC_CLS_CODE": "",
             },
         )
 
