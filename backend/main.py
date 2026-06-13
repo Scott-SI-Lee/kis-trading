@@ -55,6 +55,7 @@ from screener import Screener, ScreenerCondition, ALL_STOCKS
 from stock_master import stock_master, schedule_daily_refresh
 from lgbm_optimizer import LGBMOptimizer
 from intraday_ai import IntradayAIEngine, MODEL_DIR as INTRADAY_MODEL_DIR, rank_candidates
+from intraday_trader import IntradayAutoTrader
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -83,6 +84,8 @@ lgbm_optimizer:    Optional[LGBMOptimizer] = None
 lgbm_batch_state: dict = {"running": False, "stop": False}
 intraday_ai: Optional[IntradayAIEngine] = None
 intraday_rank_state: dict = {"running": False, "stop": False, "result": []}
+intraday_batch_state: dict = {"running": False, "stop": False}
+intraday_trader: Optional[IntradayAutoTrader] = None
 
 # ── .env에서 자격증명 로드 (모의/실전 분리) ─────────────────────
 def load_credentials_from_env(mode: str = "mock") -> Optional[dict]:
@@ -1065,6 +1068,298 @@ async def intraday_ai_rank(req: IntradayAIRankRequest):
 @app.get("/api/intraday-ai/rank/result")
 async def intraday_ai_rank_result():
     return intraday_rank_state.get("result", [])
+
+# ── 장중 AI 배치 학습 ────────────────────────────────────────
+class IntradayAIBatchRequest(BaseModel):
+    symbols: List[str]  # 학습할 종목 코드 리스트
+    n_trials: int = 30
+    ohlcv_count: int = 240
+
+@app.post("/api/intraday-ai/train-batch")
+async def intraday_ai_train_batch(req: IntradayAIBatchRequest):
+    require_auth()
+    if not req.symbols or len(req.symbols) == 0:
+        raise HTTPException(status_code=400, detail="종목 리스트가 비어있습니다")
+    if intraday_batch_state.get("running"):
+        raise HTTPException(status_code=400, detail="이미 배치 학습이 실행 중입니다")
+
+    symbols = req.symbols[:50]  # 최대 50개 제한
+    intraday_batch_state.clear()
+    intraday_batch_state.update({
+        "running": True,
+        "stop": False,
+        "status": "running",
+        "message": f"배치 학습 시작 (총 {len(symbols)}개)",
+        "index": 0,
+        "total": len(symbols),
+        "done": 0,
+        "failed": 0,
+        "symbol": None,
+        "errors": [],
+    })
+
+    asyncio.create_task(_run_intraday_ai_batch(symbols, req.n_trials, req.ohlcv_count))
+    return {
+        "ok": True,
+        "message": f"장중 AI {len(symbols)}개 종목 배치 학습 시작",
+        "symbols": symbols,
+    }
+
+@app.post("/api/intraday-ai/train-batch/stop")
+async def intraday_ai_train_batch_stop():
+    intraday_batch_state["stop"] = True
+    return {"ok": True, "message": "배치 학습 중지 요청"}
+
+@app.get("/api/intraday-ai/train-batch/progress")
+async def intraday_ai_train_batch_progress():
+    if not intraday_batch_state.get("running"):
+        return {
+            "running": False,
+            "status": "idle",
+            "progress": 0,
+            "message": "대기중",
+        }
+    return {
+        "running": intraday_batch_state.get("running"),
+        "status": intraday_batch_state.get("status"),
+        "index": intraday_batch_state.get("index", 0),
+        "total": intraday_batch_state.get("total", 0),
+        "done": intraday_batch_state.get("done", 0),
+        "failed": intraday_batch_state.get("failed", 0),
+        "symbol": intraday_batch_state.get("symbol"),
+        "message": intraday_batch_state.get("message", ""),
+        "progress": round(intraday_batch_state.get("index", 0) / max(1, intraday_batch_state.get("total", 1)) * 100),
+    }
+
+async def _run_intraday_ai_batch(symbols: list[str], n_trials: int, ohlcv_count: int):
+    global intraday_ai
+    total = len(symbols)
+
+    try:
+        for idx, symbol in enumerate(symbols, start=1):
+            if intraday_batch_state.get("stop"):
+                break
+
+            intraday_batch_state.update({
+                "index": idx,
+                "symbol": symbol,
+                "status": "running",
+                "message": f"[{idx}/{total}] {symbol} 학습 중...",
+            })
+
+            await broadcast({
+                "type": "intraday_ai_batch",
+                "status": "item_start",
+                "symbol": symbol,
+                "index": idx,
+                "total": total,
+                "message": intraday_batch_state["message"],
+            })
+
+            try:
+                bars = await kis.get_intraday_ohlcv(symbol, ohlcv_count)
+                try:
+                    orderbook = await kis.get_orderbook(symbol)
+                except:
+                    orderbook = {}
+
+                intraday_ai = IntradayAIEngine()
+                loop = asyncio.get_event_loop()
+                result = await loop.run_in_executor(
+                    None,
+                    lambda: intraday_ai.train(symbol, bars, n_trials, None, orderbook, None),
+                )
+
+                if result.get("status") == "done":
+                    intraday_batch_state["done"] += 1
+                    status_msg = "완료"
+                else:
+                    intraday_batch_state["failed"] += 1
+                    status_msg = f"실패: {result.get('message', '알 수 없음')}"
+                    intraday_batch_state["errors"].append({
+                        "symbol": symbol,
+                        "message": result.get("message", "알 수 없는 오류"),
+                    })
+
+                await broadcast({
+                    "type": "intraday_ai_batch",
+                    "status": "item_done",
+                    "symbol": symbol,
+                    "index": idx,
+                    "total": total,
+                    "result": result.get("status"),
+                    "done": intraday_batch_state["done"],
+                    "failed": intraday_batch_state["failed"],
+                    "message": f"[{idx}/{total}] {symbol} {status_msg}",
+                })
+
+            except Exception as e:
+                logger.error(f"배치 학습 오류 {symbol}: {e}")
+                intraday_batch_state["failed"] += 1
+                intraday_batch_state["errors"].append({
+                    "symbol": symbol,
+                    "message": str(e),
+                })
+                await broadcast({
+                    "type": "intraday_ai_batch",
+                    "status": "item_error",
+                    "symbol": symbol,
+                    "index": idx,
+                    "total": total,
+                    "message": f"[{idx}/{total}] {symbol} 오류: {str(e)}",
+                })
+
+            await asyncio.sleep(0.5)
+
+        stopped = intraday_batch_state.get("stop")
+        status = "idle" if stopped else "done"
+        message = (
+            f"배치 학습 중지 · 완료 {intraday_batch_state['done']}개 / 실패 {intraday_batch_state['failed']}개"
+            if stopped else
+            f"배치 학습 완료 · 완료 {intraday_batch_state['done']}개 / 실패 {intraday_batch_state['failed']}개"
+        )
+
+        intraday_batch_state.update({"status": status, "message": message})
+        await broadcast({
+            "type": "intraday_ai_batch",
+            "status": "done" if not stopped else "stopped",
+            "message": message,
+            "done": intraday_batch_state["done"],
+            "failed": intraday_batch_state["failed"],
+            "total": total,
+        })
+
+    except Exception as e:
+        logger.error(f"배치 학습 오류: {e}", exc_info=True)
+        intraday_batch_state.update({"status": "error", "message": f"배치 학습 오류: {e}"})
+        await broadcast({
+            "type": "intraday_ai_batch",
+            "status": "error",
+            "message": intraday_batch_state["message"],
+        })
+    finally:
+        intraday_batch_state["running"] = False
+
+# ── 장중 단타 자동매매 ──────────────────────────────────────
+class IntradayTraderConfigRequest(BaseModel):
+    entry_threshold: Optional[float] = None
+    take_profit: Optional[float] = None
+    stop_loss: Optional[float] = None
+    time_exit_minutes: Optional[int] = None
+    max_position_qty: Optional[int] = None
+    max_daily_loss: Optional[float] = None
+
+class IntradayTraderEntryRequest(BaseModel):
+    symbol: str
+    qty: int = 5
+
+@app.post("/api/intraday-trader/start")
+async def intraday_trader_start():
+    global intraday_trader
+    require_auth()
+
+    if intraday_trader and intraday_trader._running:
+        raise HTTPException(status_code=400, detail="이미 장중 단타 자동매매가 실행 중입니다")
+
+    intraday_trader = IntradayAutoTrader(kis)
+    await intraday_trader.start(broadcast)
+
+    return {
+        "ok": True,
+        "message": "장중 단타 자동매매 시작",
+        "config": intraday_trader.status().get("config"),
+    }
+
+@app.post("/api/intraday-trader/stop")
+async def intraday_trader_stop():
+    global intraday_trader
+    if intraday_trader is None:
+        raise HTTPException(status_code=404, detail="실행 중인 자동매매가 없습니다")
+
+    await intraday_trader.stop()
+    return {"ok": True, "message": "장중 단타 자동매매 중지"}
+
+@app.get("/api/intraday-trader/status")
+async def intraday_trader_status():
+    if intraday_trader is None:
+        return {
+            "running": False,
+            "has_position": False,
+            "position": None,
+            "total_pnl": 0,
+            "trades_closed": 0,
+        }
+    return intraday_trader.status()
+
+@app.get("/api/intraday-trader/log")
+async def intraday_trader_log():
+    if intraday_trader is None:
+        return []
+    return intraday_trader.get_log()
+
+@app.post("/api/intraday-trader/config")
+async def intraday_trader_config(req: IntradayTraderConfigRequest):
+    global intraday_trader
+    if intraday_trader is None:
+        raise HTTPException(status_code=404, detail="자동매매를 먼저 시작하세요")
+
+    if req.entry_threshold is not None:
+        intraday_trader.entry_threshold = req.entry_threshold
+    if req.take_profit is not None:
+        intraday_trader.take_profit = req.take_profit
+    if req.stop_loss is not None:
+        intraday_trader.stop_loss = req.stop_loss
+    if req.time_exit_minutes is not None:
+        intraday_trader.time_exit_minutes = req.time_exit_minutes
+    if req.max_position_qty is not None:
+        intraday_trader.max_position_qty = req.max_position_qty
+    if req.max_daily_loss is not None:
+        intraday_trader.max_daily_loss = req.max_daily_loss
+
+    return {
+        "ok": True,
+        "message": "설정 업데이트 완료",
+        "config": intraday_trader.status().get("config"),
+    }
+
+@app.post("/api/intraday-trader/entry")
+async def intraday_trader_entry(req: IntradayTraderEntryRequest):
+    """수동 진입 (테스트용)"""
+    global intraday_trader
+    require_auth()
+
+    if intraday_trader is None:
+        raise HTTPException(status_code=404, detail="자동매매를 먼저 시작하세요")
+
+    if intraday_trader._position:
+        raise HTTPException(status_code=400, detail=f"이미 진입한 포지션 있음: {intraday_trader._position.symbol}")
+
+    ok = await intraday_trader.entry_position(req.symbol, req.qty, broadcast)
+    if not ok:
+        raise HTTPException(status_code=400, detail=f"{req.symbol} 진입 실패")
+
+    return {
+        "ok": True,
+        "message": f"{req.symbol} {req.qty}주 진입",
+        "position": intraday_trader._position.to_dict() if intraday_trader._position else None,
+    }
+
+@app.post("/api/intraday-trader/exit")
+async def intraday_trader_exit():
+    """수동 청산 (테스트용)"""
+    global intraday_trader
+    require_auth()
+
+    if intraday_trader is None or intraday_trader._position is None:
+        raise HTTPException(status_code=404, detail="청산할 포지션이 없습니다")
+
+    await intraday_trader._exit_position("manual_exit", broadcast)
+
+    return {
+        "ok": True,
+        "message": "포지션 청산",
+        "total_pnl": intraday_trader._total_pnl,
+    }
 
 if __name__ == "__main__":
     import uvicorn

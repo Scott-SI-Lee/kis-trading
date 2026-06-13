@@ -364,6 +364,9 @@
     <button class="nav-item" onclick="showPage('intraday-ai',this)">
       <span class="nav-icon">⚡</span> 장중 급등 AI
     </button>
+    <button class="nav-item" onclick="showPage('intraday-trader',this)">
+      <span class="nav-icon">🚀</span> 단타 자동매매
+    </button>
     <div class="nav-section" style="margin-top:auto;">계좌</div>
     <button class="nav-item" onclick="showPage('balance',this)">
       <span class="nav-icon">💼</span> 잔고 / 포지션
@@ -1000,6 +1003,50 @@
             </div>
           </div>
 
+          <!-- 배치 학습 -->
+          <div class="panel">
+            <div class="panel-header">
+              <span class="panel-title">🔄 배치 학습</span>
+              <span id="ia-batch-badge" class="badge badge-hold">대기중</span>
+            </div>
+            <div class="panel-body" style="display:flex; flex-direction:column; gap:12px;">
+              <div style="background:var(--accent-dim); border:1px solid rgba(59,130,246,0.2); border-radius:8px; padding:12px; font-size:12px; color:var(--muted); line-height:1.8;">
+                여러 종목을 <strong>순차적으로 학습</strong>합니다. 저장된 모델들을 일괄 재학습하거나, 새로운 종목들을 추가할 수 있습니다.
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">종목 선택 (쉼표로 구분)</label>
+                <textarea class="form-input" id="ia-batch-symbols" placeholder="예: 005930,000660,373220" style="height:60px; font-family:var(--mono); font-size:12px; resize:vertical;"></textarea>
+              </div>
+
+              <div class="form-grid">
+                <div class="form-group">
+                  <label class="form-label">Optuna Trials</label>
+                  <input class="form-input" id="ia-batch-trials" type="number" value="30" min="5" max="100"/>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">분봉 개수</label>
+                  <input class="form-input" id="ia-batch-count" type="number" value="240" min="120" max="500"/>
+                </div>
+              </div>
+
+              <div class="btn-group">
+                <button class="btn btn-primary" onclick="loadSavedIntradaySymbols()" style="flex:1; padding:10px; font-size:12px;">💾 저장 모델 모두</button>
+                <button class="btn btn-success" onclick="startIntradayAIBatch()" style="flex:1; padding:10px; font-size:12px;" id="ia-batch-start-btn">▶ 배치 시작</button>
+                <button class="btn btn-danger" onclick="stopIntradayAIBatch()" style="flex:1; padding:10px; font-size:12px;" id="ia-batch-stop-btn" disabled>⏹ 중지</button>
+              </div>
+
+              <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--muted); font-family:var(--mono);">
+                <span id="ia-batch-status">대기중</span>
+                <span id="ia-batch-progress-text">0 / 0</span>
+              </div>
+              <div style="background:var(--bg); border-radius:8px; height:8px; overflow:hidden;">
+                <div id="ia-batch-progress-bar" style="height:100%; background:var(--green); width:0%; transition:width .3s; border-radius:8px;"></div>
+              </div>
+              <div id="ia-batch-log" style="background:var(--bg); border-radius:6px; padding:8px; max-height:150px; overflow-y:auto; font-family:var(--mono); font-size:11px; display:flex; flex-direction:column; gap:2px; color:var(--muted);"></div>
+            </div>
+          </div>
+
           <div class="panel">
             <div class="panel-header"><span class="panel-title">실시간 랭킹 조건</span></div>
             <div class="panel-body" style="display:flex; flex-direction:column; gap:12px;">
@@ -1092,6 +1139,142 @@
           <div class="panel" id="ia-predict-panel" style="display:none;">
             <div class="panel-header"><span class="panel-title">최신 예측 상세</span></div>
             <div class="panel-body" id="ia-predict-result"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ 단타 자동매매 ══ -->
+    <div id="page-intraday-trader" class="page">
+      <div class="two-col" style="align-items:start; grid-template-columns:minmax(300px, 0.6fr) minmax(0, 1.4fr);">
+        <!-- 좌측: 제어 패널 -->
+        <div style="display:flex; flex-direction:column; gap:12px;">
+          <!-- 상태 -->
+          <div class="panel">
+            <div class="panel-header">
+              <span class="panel-title">🚀 단타 자동매매</span>
+              <span id="it-status-badge" class="badge badge-hold">대기중</span>
+            </div>
+            <div class="panel-body" style="display:flex; flex-direction:column; gap:10px;">
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:12px;">
+                <div style="background:var(--surface2); border-radius:6px; padding:8px; text-align:center;">
+                  <div style="color:var(--muted); font-size:11px; margin-bottom:2px;">손익 (누적)</div>
+                  <div style="font-family:var(--mono); font-weight:600; font-size:14px;" id="it-total-pnl">₩0</div>
+                </div>
+                <div style="background:var(--surface2); border-radius:6px; padding:8px; text-align:center;">
+                  <div style="color:var(--muted); font-size:11px; margin-bottom:2px;">완료 거래</div>
+                  <div style="font-family:var(--mono); font-weight:600; font-size:14px;" id="it-trades-closed">0</div>
+                </div>
+              </div>
+              <div id="it-position-status" style="display:none; background:var(--surface2); border-radius:6px; padding:10px; border-left:3px solid var(--accent);">
+                <div style="font-size:12px; font-weight:500; margin-bottom:6px; color:var(--text);">진입 중</div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; font-size:11px;">
+                  <div><span style="color:var(--muted);">종목:</span> <span id="it-pos-symbol" style="font-family:var(--mono); color:var(--accent);">-</span></div>
+                  <div><span style="color:var(--muted);">수량:</span> <span id="it-pos-qty" style="font-family:var(--mono);">-</span></div>
+                  <div><span style="color:var(--muted);">진입가:</span> <span id="it-pos-entry" style="font-family:var(--mono);">-</span></div>
+                  <div><span style="color:var(--muted);">현재가:</span> <span id="it-pos-current" style="font-family:var(--mono);">-</span></div>
+                  <div style="grid-column:1/-1;"><span style="color:var(--muted);">손익:</span> <span id="it-pos-pnl" style="font-family:var(--mono); font-weight:600;">-</span></div>
+                </div>
+              </div>
+              <div class="btn-group" style="gap:6px;">
+                <button class="btn btn-primary" onclick="startIntradayTrader()" style="flex:1; padding:10px; font-size:13px;" id="it-start-btn">▶ 시작</button>
+                <button class="btn btn-danger" onclick="stopIntradayTrader()" style="flex:1; padding:10px; font-size:13px;" id="it-stop-btn" disabled>⏹ 중지</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 설정 -->
+          <div class="panel">
+            <div class="panel-header">
+              <span class="panel-title">⚙️ 설정</span>
+            </div>
+            <div class="panel-body" style="display:flex; flex-direction:column; gap:10px;">
+              <div class="form-group">
+                <label class="form-label">진입 AI 확률 (%)</label>
+                <input class="form-input" id="it-entry-threshold" type="number" value="75" min="50" max="99" step="1" onchange="updateIntradayConfig()"/>
+              </div>
+              <div class="form-group">
+                <label class="form-label">익절 (%)</label>
+                <input class="form-input" id="it-take-profit" type="number" value="3" min="0.1" max="10" step="0.1" onchange="updateIntradayConfig()"/>
+              </div>
+              <div class="form-group">
+                <label class="form-label">손절 (%)</label>
+                <input class="form-input" id="it-stop-loss" type="number" value="-1.5" min="-10" max="-0.1" step="0.1" onchange="updateIntradayConfig()"/>
+              </div>
+              <div class="form-group">
+                <label class="form-label">시간 한계 (분)</label>
+                <input class="form-input" id="it-time-exit" type="number" value="15" min="5" max="60" step="1" onchange="updateIntradayConfig()"/>
+              </div>
+              <div class="form-group">
+                <label class="form-label">일일 최대 손실 (₩)</label>
+                <input class="form-input" id="it-max-daily-loss" type="number" value="-100000" step="10000" onchange="updateIntradayConfig()"/>
+              </div>
+              <div style="background:var(--accent-dim); border:1px solid rgba(59,130,246,0.2); border-radius:6px; padding:8px; font-size:11px; line-height:1.6; color:var(--muted);">
+                💡 <strong>익절/손절은 선택한 값 도달 시 즉시 청산됩니다.</strong><br/>시간 한계에 도달해도 여전히 포지션이 있으면 청산합니다.
+              </div>
+            </div>
+          </div>
+
+          <!-- 수동 제어 (테스트) -->
+          <div class="panel">
+            <div class="panel-header">
+              <span class="panel-title">🧪 수동 제어 (테스트)</span>
+            </div>
+            <div class="panel-body" style="display:flex; flex-direction:column; gap:8px;">
+              <div style="display:flex; gap:6px;">
+                <input class="form-input" id="it-manual-symbol" placeholder="종목코드" style="flex:0.7;" value="005930"/>
+                <input class="form-input" id="it-manual-qty" placeholder="수량" type="number" min="1" max="100" value="5" style="flex:0.3;"/>
+              </div>
+              <div class="btn-group">
+                <button class="btn btn-success" onclick="manualEntryIntraday()" style="flex:1; padding:8px; font-size:12px;">📈 수동 진입</button>
+                <button class="btn btn-danger" onclick="manualExitIntraday()" style="flex:1; padding:8px; font-size:12px;">📉 수동 청산</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 우측: 거래 로그 -->
+        <div style="display:flex; flex-direction:column; gap:12px;">
+          <div class="panel">
+            <div class="panel-header">
+              <span class="panel-title">📋 거래 로그</span>
+              <button class="btn btn-outline" onclick="clearIntradayLog()" style="padding:4px 10px; font-size:12px;">초기화</button>
+            </div>
+            <div class="panel-body">
+              <div style="overflow-x:auto;">
+                <table class="data-table" style="width:100%; font-size:12px;">
+                  <thead>
+                    <tr>
+                      <th style="width:100px;">시간</th>
+                      <th style="width:80px;">유형</th>
+                      <th style="width:70px;">종목</th>
+                      <th style="width:60px;">수량</th>
+                      <th style="width:80px;">진입/현재</th>
+                      <th style="width:70px;">손익</th>
+                      <th style="width:80px;">이유</th>
+                    </tr>
+                  </thead>
+                  <tbody id="it-log-tbody">
+                    <tr>
+                      <td colspan="7" style="text-align:center; color:var(--muted); padding:40px 12px;">거래 없음</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- 실시간 신호 -->
+          <div class="panel">
+            <div class="panel-header">
+              <span class="panel-title">⚡ 실시간 신호</span>
+              <span id="it-signal-badge" class="badge badge-hold">감시중</span>
+            </div>
+            <div class="panel-body">
+              <div id="it-signal-log" style="background:var(--bg); border-radius:6px; padding:10px; max-height:250px; overflow-y:auto; font-family:var(--mono); font-size:11px; display:flex; flex-direction:column; gap:4px;">
+                <div style="color:var(--muted);">신호 대기중...</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -2525,6 +2708,24 @@ const _baseOnMessage = (e) => {
   } else if (msg.type === 'intraday_ai_done') {
     renderIntradayRank(msg.data || []);
     setIntradayStatus('done', `랭킹 완료 · ${msg.count || 0}개 후보`);
+  } else if (msg.type === 'intraday_trade') {
+    // 단타 자동매매 신호
+    if (msg.status === 'position_opened') {
+      const log = msg.data;
+      appendIntradaySignal(`✅ 진입: ${log.symbol} ${log.qty}주 @ ₩${log.entry_price.toLocaleString('ko-KR')}`, 'success');
+    } else if (msg.status === 'position_closed') {
+      const log = msg.data;
+      const pnl = log.pnl || 0;
+      appendIntradaySignal(`❌ 청산: ${log.symbol} ${log.reason} | PnL: ${pnl >= 0 ? '+' : ''}₩${pnl.toLocaleString('ko-KR')}`, pnl >= 0 ? 'success' : 'error');
+    } else if (msg.status === 'candidate_found') {
+      appendIntradaySignal(`🎯 후보: ${msg.symbol} (확률: ${(msg.probability*100).toFixed(1)}%)`, 'info');
+    } else if (msg.status === 'position_update') {
+      const pos = msg.position;
+      if (pos) {
+        const pnlColor = pos.pnl_pct >= 0 ? 'green' : pos.pnl_pct <= -1 ? 'red' : 'yellow';
+        appendIntradaySignal(`${pos.symbol}: ₩${pos.current_price.toLocaleString('ko-KR')} (${pos.pnl_pct.toFixed(2)}%)`, pnlColor);
+      }
+    }
   }
 };
 
@@ -3423,6 +3624,250 @@ window.addEventListener('DOMContentLoaded', () => {
   loadSavedLGBMModels();
   loadStrategyAIModels();
   loadStrategyStatus();
+  loadIntradayTraderStatus();
+});
+
+// ── 단타 자동매매 함수 ──
+async function startIntradayTrader() {
+  try {
+    const res = await fetch(`${API}/intraday-trader/start`, {method:'POST'});
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail);
+    toast('단타 자동매매 시작', 'success');
+    document.getElementById('it-start-btn').disabled = true;
+    document.getElementById('it-stop-btn').disabled = false;
+    document.getElementById('it-status-badge').className = 'badge badge-live';
+    document.getElementById('it-status-badge').textContent = '실행중';
+    loadIntradayTraderStatus();
+    startIntradayTraderMonitor();
+  } catch(e) {
+    toast('시작 실패: ' + e.message, 'error');
+  }
+}
+
+async function stopIntradayTrader() {
+  try {
+    const res = await fetch(`${API}/intraday-trader/stop`, {method:'POST'});
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail);
+    toast('단타 자동매매 중지', 'success');
+    document.getElementById('it-start-btn').disabled = false;
+    document.getElementById('it-stop-btn').disabled = true;
+    document.getElementById('it-status-badge').className = 'badge badge-hold';
+    document.getElementById('it-status-badge').textContent = '대기중';
+    loadIntradayTraderStatus();
+  } catch(e) {
+    toast('중지 실패: ' + e.message, 'error');
+  }
+}
+
+async function loadIntradayTraderStatus() {
+  try {
+    const res = await fetch(`${API}/intraday-trader/status`);
+    const status = await res.json();
+
+    // 상태 업데이트
+    const running = status.running || false;
+    document.getElementById('it-start-btn').disabled = running;
+    document.getElementById('it-stop-btn').disabled = !running;
+
+    const badge = document.getElementById('it-status-badge');
+    badge.className = running ? 'badge badge-live' : 'badge badge-hold';
+    badge.textContent = running ? '실행중' : '대기중';
+
+    // 손익 & 거래 수
+    const totalPnL = status.total_pnl || 0;
+    const pnlEl = document.getElementById('it-total-pnl');
+    pnlEl.textContent = (totalPnL >= 0 ? '₩' : '-₩') + Math.abs(totalPnL).toLocaleString('ko-KR');
+    pnlEl.style.color = totalPnL >= 0 ? 'var(--green)' : 'var(--red)';
+
+    document.getElementById('it-trades-closed').textContent = status.trades_closed || 0;
+
+    // 포지션 상태
+    if (status.position) {
+      const pos = status.position;
+      document.getElementById('it-position-status').style.display = 'block';
+      document.getElementById('it-pos-symbol').textContent = pos.symbol;
+      document.getElementById('it-pos-qty').textContent = pos.qty + '주';
+      document.getElementById('it-pos-entry').textContent = '₩' + pos.entry_price.toLocaleString('ko-KR');
+      document.getElementById('it-pos-current').textContent = '₩' + pos.current_price.toLocaleString('ko-KR');
+
+      const pnl = pos.pnl;
+      const pnlEl = document.getElementById('it-pos-pnl');
+      pnlEl.textContent = (pnl >= 0 ? '+' : '') + '₩' + pnl.toLocaleString('ko-KR') + ' (' + pos.pnl_pct.toFixed(2) + '%)';
+      pnlEl.style.color = pnl >= 0 ? 'var(--green)' : 'var(--red)';
+    } else {
+      document.getElementById('it-position-status').style.display = 'none';
+    }
+
+    // 로그 업데이트
+    await loadIntradayTraderLog();
+  } catch(e) {
+    console.debug('상태 로드 오류:', e);
+  }
+}
+
+async function loadIntradayTraderLog() {
+  try {
+    const res = await fetch(`${API}/intraday-trader/log`);
+    const logs = await res.json();
+
+    const tbody = document.getElementById('it-log-tbody');
+    if (!logs || logs.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:var(--muted); padding:40px 12px;">거래 없음</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = logs.map(log => {
+      const time = new Date(log.time).toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+      const type = log.type === 'entry' ? '📈 진입' : '📉 청산';
+      const symbol = log.symbol || '-';
+      const qty = log.qty || '-';
+
+      let entryExit = '-';
+      if (log.type === 'entry') {
+        entryExit = '₩' + log.entry_price.toLocaleString('ko-KR');
+      } else {
+        entryExit = log.entry_price.toLocaleString('ko-KR') + ' → ' + log.exit_price.toLocaleString('ko-KR');
+      }
+
+      const pnl = log.pnl ? ((log.pnl >= 0 ? '+' : '') + '₩' + log.pnl.toLocaleString('ko-KR')) : '진입중';
+      const pnlColor = log.pnl !== undefined ? (log.pnl >= 0 ? 'color:var(--green)' : 'color:var(--red)') : '';
+
+      const reason = log.reason || '-';
+
+      return `<tr>
+        <td style="font-size:11px;">${time}</td>
+        <td>${type}</td>
+        <td style="font-weight:500; color:var(--accent);">${symbol}</td>
+        <td>${qty}</td>
+        <td style="font-size:11px;">${entryExit}</td>
+        <td style="font-weight:500; ${pnlColor}">${pnl}</td>
+        <td style="font-size:11px; color:var(--muted);">${reason}</td>
+      </tr>`;
+    }).join('');
+  } catch(e) {
+    console.debug('로그 로드 오류:', e);
+  }
+}
+
+async function updateIntradayConfig() {
+  try {
+    const config = {
+      entry_threshold: parseFloat(document.getElementById('it-entry-threshold').value) / 100,
+      take_profit: parseFloat(document.getElementById('it-take-profit').value) / 100,
+      stop_loss: parseFloat(document.getElementById('it-stop-loss').value) / 100,
+      time_exit_minutes: parseInt(document.getElementById('it-time-exit').value),
+      max_daily_loss: parseFloat(document.getElementById('it-max-daily-loss').value),
+    };
+
+    const res = await fetch(`${API}/intraday-trader/config`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(config),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail);
+    toast('설정 업데이트 완료', 'success');
+  } catch(e) {
+    toast('설정 변경 실패: ' + e.message, 'error');
+  }
+}
+
+async function manualEntryIntraday() {
+  try {
+    const symbol = document.getElementById('it-manual-symbol').value.trim();
+    const qty = parseInt(document.getElementById('it-manual-qty').value);
+    if (!symbol || qty <= 0) {
+      toast('종목과 수량을 올바르게 입력하세요', 'warn');
+      return;
+    }
+
+    const res = await fetch(`${API}/intraday-trader/entry`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({symbol, qty}),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail);
+    toast(`${symbol} ${qty}주 진입`, 'success');
+    loadIntradayTraderStatus();
+  } catch(e) {
+    toast('진입 실패: ' + e.message, 'error');
+  }
+}
+
+async function manualExitIntraday() {
+  try {
+    const res = await fetch(`${API}/intraday-trader/exit`, {method:'POST'});
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail);
+    toast('포지션 청산 완료', 'success');
+    loadIntradayTraderStatus();
+  } catch(e) {
+    toast('청산 실패: ' + e.message, 'error');
+  }
+}
+
+function clearIntradayLog() {
+  if (confirm('거래 로그를 초기화하시겠습니까?')) {
+    document.getElementById('it-log-tbody').innerHTML = '<tr><td colspan="7" style="text-align:center; color:var(--muted); padding:40px 12px;">거래 없음</td></tr>';
+    toast('로그 초기화됨', 'info');
+  }
+}
+
+let intradayTraderMonitorActive = false;
+function startIntradayTraderMonitor() {
+  if (intradayTraderMonitorActive) return;
+  intradayTraderMonitorActive = true;
+
+  const monitor = setInterval(async () => {
+    const page = document.getElementById('page-intraday-trader');
+    if (!page || !page.classList.contains('active')) {
+      clearInterval(monitor);
+      intradayTraderMonitorActive = false;
+      return;
+    }
+    await loadIntradayTraderStatus();
+  }, 2000);
+}
+
+function appendIntradaySignal(message, level = 'info') {
+  const el = document.getElementById('it-signal-log');
+  if (!el) return;
+
+  const time = new Date().toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  const color = level === 'success' ? 'var(--green)' : level === 'error' ? 'var(--red)' : level === 'yellow' ? 'var(--yellow)' : 'var(--accent)';
+
+  const line = document.createElement('div');
+  line.style.cssText = `display:flex; gap:8px; color:${color};`;
+  line.textContent = `[${time}] ${message}`;
+
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+
+  // 최대 50줄 유지
+  while (el.children.length > 50) {
+    el.removeChild(el.firstChild);
+  }
+}
+
+// 주기적 상태 갱신
+setInterval(() => {
+  const page = document.getElementById('page-intraday-trader');
+  if (page && page.classList.contains('active') && isAuthenticated) {
+    loadIntradayTraderStatus();
+  }
+}, 3000);
+
+// 모든 함수 정의 완료 후 실행
+window.addEventListener('DOMContentLoaded', () => {
+  checkEnvAuth();
+  checkMasterStatus();
+  loadSavedLGBMModels();
+  loadStrategyAIModels();
+  loadStrategyStatus();
+  loadIntradayTraderStatus();
 });
 </script>
 </body>
