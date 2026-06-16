@@ -1,6 +1,7 @@
 # 절대 커밋하면 안 되는 파일
 .env
 .env.local
+.env.*
 # Python
 __pycache__/
 *.pyc

@@ -1,0 +1,819 @@
+{
+  "generated_at_kst": "2026-06-16T07:22:25+09:00",
+  "news_window_hours": 24,
+  "summary": [
+    "미국 주요 지수는 위험선호 우위로 마감했습니다.",
+    "섹터 강세는 SOX(+9.24%)가 주도했습니다.",
+    "섹터 약세는 XLE(-4.77%)가 두드러졌습니다.",
+    "미 10년물 금리 변화율은 -1.30%입니다.",
+    "DXY는 -0.29%로 외국인 수급에 영향을 줄 수 있습니다."
+  ],
+  "news_signal": {
+    "positive_hits": 79,
+    "negative_hits": 25,
+    "net_score": 54,
+    "themes": [
+      {
+        "theme": "AI/반도체",
+        "count": 68
+      },
+      {
+        "theme": "금리/달러",
+        "count": 35
+      },
+      {
+        "theme": "에너지",
+        "count": 19
+      },
+      {
+        "theme": "전기차/배터리",
+        "count": 15
+      },
+      {
+        "theme": "지정학/관세",
+        "count": 14
+      }
+    ]
+  },
+  "market_data": [
+    {
+      "key": "sp500",
+      "label": "S&P500",
+      "symbol": "^GSPC",
+      "group": "major_index",
+      "price": 7554.29,
+      "prev_close": 7405.73,
+      "change_pct": 2.006,
+      "fetched_at": "2026-06-15T22:22:18.907886+00:00",
+      "error": null
+    },
+    {
+      "key": "nasdaq",
+      "label": "Nasdaq",
+      "symbol": "^IXIC",
+      "group": "major_index",
+      "price": 26683.941,
+      "prev_close": 25929.66,
+      "change_pct": 2.909,
+      "fetched_at": "2026-06-15T22:22:19.187755+00:00",
+      "error": null
+    },
+    {
+      "key": "dow",
+      "label": "Dow Jones",
+      "symbol": "^DJI",
+      "group": "major_index",
+      "price": 51671.03,
+      "prev_close": 50786.01,
+      "change_pct": 1.743,
+      "fetched_at": "2026-06-15T22:22:19.468709+00:00",
+      "error": null
+    },
+    {
+      "key": "russell2000",
+      "label": "Russell2000",
+      "symbol": "^RUT",
+      "group": "major_index",
+      "price": 2965.087,
+      "prev_close": 2855.42,
+      "change_pct": 3.841,
+      "fetched_at": "2026-06-15T22:22:19.750592+00:00",
+      "error": null
+    },
+    {
+      "key": "sox",
+      "label": "SOX",
+      "symbol": "^SOX",
+      "group": "sector",
+      "price": 14099.623,
+      "prev_close": 12906.69,
+      "change_pct": 9.243,
+      "fetched_at": "2026-06-15T22:22:20.034654+00:00",
+      "error": null
+    },
+    {
+      "key": "xlk",
+      "label": "XLK",
+      "symbol": "XLK",
+      "group": "sector",
+      "price": 191.79,
+      "prev_close": 184.18,
+      "change_pct": 4.132,
+      "fetched_at": "2026-06-15T22:22:20.347797+00:00",
+      "error": null
+    },
+    {
+      "key": "xle",
+      "label": "XLE",
+      "symbol": "XLE",
+      "group": "sector",
+      "price": 55.55,
+      "prev_close": 58.33,
+      "change_pct": -4.766,
+      "fetched_at": "2026-06-15T22:22:20.663909+00:00",
+      "error": null
+    },
+    {
+      "key": "xlf",
+      "label": "XLF",
+      "symbol": "XLF",
+      "group": "sector",
+      "price": 53.56,
+      "prev_close": 51.97,
+      "change_pct": 3.059,
+      "fetched_at": "2026-06-15T22:22:20.989441+00:00",
+      "error": null
+    },
+    {
+      "key": "xlv",
+      "label": "XLV",
+      "symbol": "XLV",
+      "group": "sector",
+      "price": 152.89,
+      "prev_close": 152.65,
+      "change_pct": 0.157,
+      "fetched_at": "2026-06-15T22:22:21.360970+00:00",
+      "error": null
+    },
+    {
+      "key": "nvidia",
+      "label": "Nvidia",
+      "symbol": "NVDA",
+      "group": "us_stock",
+      "price": 212.45,
+      "prev_close": 208.64,
+      "change_pct": 1.826,
+      "fetched_at": "2026-06-15T22:22:21.658562+00:00",
+      "error": null
+    },
+    {
+      "key": "amd",
+      "label": "AMD",
+      "symbol": "AMD",
+      "group": "us_stock",
+      "price": 547.26,
+      "prev_close": 490.33,
+      "change_pct": 11.611,
+      "fetched_at": "2026-06-15T22:22:21.941123+00:00",
+      "error": null
+    },
+    {
+      "key": "tsmc",
+      "label": "TSMC",
+      "symbol": "TSM",
+      "group": "us_stock",
+      "price": 441.4,
+      "prev_close": 426.8,
+      "change_pct": 3.421,
+      "fetched_at": "2026-06-15T22:22:22.247093+00:00",
+      "error": null
+    },
+    {
+      "key": "microsoft",
+      "label": "Microsoft",
+      "symbol": "MSFT",
+      "group": "us_stock",
+      "price": 399.76,
+      "prev_close": 411.74,
+      "change_pct": -2.91,
+      "fetched_at": "2026-06-15T22:22:22.568100+00:00",
+      "error": null
+    },
+    {
+      "key": "apple",
+      "label": "Apple",
+      "symbol": "AAPL",
+      "group": "us_stock",
+      "price": 296.42,
+      "prev_close": 301.54,
+      "change_pct": -1.698,
+      "fetched_at": "2026-06-15T22:22:22.917901+00:00",
+      "error": null
+    },
+    {
+      "key": "tesla",
+      "label": "Tesla",
+      "symbol": "TSLA",
+      "group": "us_stock",
+      "price": 411.15,
+      "prev_close": 408.95,
+      "change_pct": 0.538,
+      "fetched_at": "2026-06-15T22:22:23.199170+00:00",
+      "error": null
+    },
+    {
+      "key": "amazon",
+      "label": "Amazon",
+      "symbol": "AMZN",
+      "group": "us_stock",
+      "price": 246.02,
+      "prev_close": 245.22,
+      "change_pct": 0.326,
+      "fetched_at": "2026-06-15T22:22:23.482654+00:00",
+      "error": null
+    },
+    {
+      "key": "meta",
+      "label": "Meta",
+      "symbol": "META",
+      "group": "us_stock",
+      "price": 593.48,
+      "prev_close": 585.39,
+      "change_pct": 1.382,
+      "fetched_at": "2026-06-15T22:22:23.769855+00:00",
+      "error": null
+    },
+    {
+      "key": "us10y",
+      "label": "미국채 10년물 금리",
+      "symbol": "^TNX",
+      "group": "macro",
+      "price": 4.469,
+      "prev_close": 4.528,
+      "change_pct": -1.303,
+      "fetched_at": "2026-06-15T22:22:24.053095+00:00",
+      "error": null
+    },
+    {
+      "key": "dxy",
+      "label": "DXY",
+      "symbol": "DX-Y.NYB",
+      "group": "macro",
+      "price": 99.662,
+      "prev_close": 99.95,
+      "change_pct": -0.288,
+      "fetched_at": "2026-06-15T22:22:24.336379+00:00",
+      "error": null
+    },
+    {
+      "key": "wti",
+      "label": "WTI",
+      "symbol": "CL=F",
+      "group": "macro",
+      "price": 81.13,
+      "prev_close": 90.03,
+      "change_pct": -9.886,
+      "fetched_at": "2026-06-15T22:22:24.631712+00:00",
+      "error": null
+    },
+    {
+      "key": "natural_gas",
+      "label": "천연가스",
+      "symbol": "NG=F",
+      "group": "macro",
+      "price": 3.149,
+      "prev_close": 3.185,
+      "change_pct": -1.13,
+      "fetched_at": "2026-06-15T22:22:24.914966+00:00",
+      "error": null
+    },
+    {
+      "key": "gold",
+      "label": "금 가격",
+      "symbol": "GC=F",
+      "group": "macro",
+      "price": 4332.6,
+      "prev_close": 4108.2,
+      "change_pct": 5.462,
+      "fetched_at": "2026-06-15T22:22:25.199109+00:00",
+      "error": null
+    }
+  ],
+  "news": [
+    {
+      "source": "Bloomberg",
+      "title": "Oil Holds Losses After Iran Deal Spurs Stock Rally: Markets Wrap",
+      "link": "https://www.bloomberg.com/news/articles/2026-06-15/oil-holds-losses-after-iran-deal-spurs-stock-rally-markets-wrap",
+      "published_at": "2026-06-15T22:06:05+00:00",
+      "summary": "Oil held losses after tumbling the most in more than two weeks on Monday as the US and Iran agreed to reopen the Strait of Hormuz, easing concerns over energy supplies and fueling a global equity rally. Stocks in Asia were set for a mixed open."
+    },
+    {
+      "source": "Bloomberg",
+      "title": "Oil Steadies Near Lowest Since March on Outlook for Hormuz Deal",
+      "link": "https://www.bloomberg.com/news/articles/2026-06-15/latest-oil-market-news-and-analysis-for-june-16",
+      "published_at": "2026-06-15T22:01:18+00:00",
+      "summary": "Oil held the biggest drop in more than two weeks on optimism that a deal between the US and Iran will reopen the Strait of Hormuz."
+    },
+    {
+      "source": "Bloomberg",
+      "title": "China Built the Last Steel Boom. India’s Will Be Different",
+      "link": "https://www.bloomberg.com/news/features/2026-06-15/global-steel-turns-to-india-for-growth-but-it-is-not-the-next-china",
+      "published_at": "2026-06-15T22:00:15+00:00",
+      "summary": "The next big growth market will align closely with domestic spending on infrastructure."
+    },
+    {
+      "source": "Bloomberg",
+      "title": "MSG Should Split Into Two Companies, Ariel's John Rogers Says",
+      "link": "https://www.bloomberg.com/news/videos/2026-06-15/msg-should-split-into-two-companies-ariel-s-john-rogers-says",
+      "published_at": "2026-06-15T21:40:36+00:00",
+      "summary": "John Rogers, Ariel Investments founder, chair, CIO and co-CEO, says MSG stocks have not reflected the value of the Knicks or the Rangers during an interview with Romaine Bostick and Katie Greifeld on \"Bloomberg The Close.\" (Source: Bloomberg)"
+    },
+    {
+      "source": "Bloomberg",
+      "title": "Where the US, Israel and Iran Stand on a Deal to End Months of War",
+      "link": "https://www.bloomberg.com/news/articles/2026-06-15/where-the-us-israel-and-iran-stand-on-a-deal-to-end-iran-war-big-take-podcast",
+      "published_at": "2026-06-15T21:40:08+00:00",
+      "summary": "On today’s Big Take podcast, we examine the major hurdles facing a proposed US-Iran peace deal, including how Israel fits into the equation."
+    },
+    {
+      "source": "CNBC",
+      "title": "The Iran deal came just in time as Strategic Petroleum Reserve hits lowest level since 1983",
+      "link": "https://www.cnbc.com/2026/06/15/iran-deal-came-in-time-as-strategic-petroleum-reserve-hits-lowest-level-since-1983.html",
+      "published_at": "2026-06-15T21:13:48+00:00",
+      "summary": "Oil executives have warned that global inventories are rapidly depleting due to the supply disruption triggered by the Iran war."
+    },
+    {
+      "source": "Bloomberg",
+      "title": "Bolivia Tells Investors FX Unification, IMF Deal Coming Soon",
+      "link": "https://www.bloomberg.com/news/articles/2026-06-15/bolivia-tells-investors-fx-unification-imf-deal-are-coming-soon",
+      "published_at": "2026-06-15T21:00:11+00:00",
+      "summary": "Bolivia told investors it is close to agreeing on a financing program with the International Monetary Fund, likely after introducing a floating exchange rate to end a dollar peg that has been in place for more than 15 years."
+    },
+    {
+      "source": "Bloomberg",
+      "title": "Blackstone’s Ancestry Hires Bank of America for $2 Billion Loan",
+      "link": "https://www.bloomberg.com/news/articles/2026-06-15/blackstone-s-ancestry-hires-bank-of-america-for-2-billion-loan",
+      "published_at": "2026-06-15T20:59:04+00:00",
+      "summary": "Ancestry.com Inc. is weighing a $2.25 billion loan deal to refinance some of its existing debt with the help of Bank of America Corp., according to people with knowledge of the matter."
+    },
+    {
+      "source": "Bloomberg",
+      "title": "West Texas Gas Rises Above Zero for First Time in Four Months",
+      "link": "https://www.bloomberg.com/news/articles/2026-06-15/west-texas-gas-rises-above-zero-for-first-time-in-four-months",
+      "published_at": "2026-06-15T20:56:46+00:00",
+      "summary": "Drillers in the world’s largest shale field on Monday were paid for the natural gas they produced for the first time in more than four months."
+    },
+    {
+      "source": "CNBC",
+      "title": "Centene to offer buyouts to some employees as health insurer cuts costs",
+      "link": "https://www.cnbc.com/2026/06/15/centene-to-offer-buyouts-to-some-employees.html",
+      "published_at": "2026-06-15T20:50:35+00:00",
+      "summary": "The health insurer Centene did not indicate to how many employees were offered buyouts or how much it is aiming to reduce its workforce."
+    },
+    {
+      "source": "CNBC",
+      "title": "SpaceX stock jumps 20% in first full day of trading after record debut",
+      "link": "https://www.cnbc.com/2026/06/15/spacex-stock-record-ipo-debut.html",
+      "published_at": "2026-06-15T20:37:28+00:00",
+      "summary": "SpaceX is valued at over $2 trillion after its stock rallied on the first day of trading last week."
+    },
+    {
+      "source": "Bloomberg",
+      "title": "Markets Rally on Hope for US-Iran Peace Deal | Closing Bell",
+      "link": "https://www.bloomberg.com/news/videos/2026-06-15/markets-rally-on-hope-for-us-iran-deal-closing-bell-video",
+      "published_at": "2026-06-15T20:34:41+00:00",
+      "summary": "Comprehensive cross-platform coverage of the U.S. market close on Bloomberg Television, Bloomberg Radio, and YouTube with Romaine Bostick, Katie Greifeld, Carol Massar and Tim Stenovec. (Source: Bloomberg)"
+    },
+    {
+      "source": "CNBC",
+      "title": "Gavin Newsom says Trump ordered DOJ to investigate him and his wife",
+      "link": "https://www.cnbc.com/2026/06/15/gavin-newsom-trump-doj-investigation-california.html",
+      "published_at": "2026-06-15T20:33:06+00:00",
+      "summary": "California Gov. Newsom called President Donald Trump \"simply the most corrupt President in American history.\""
+    },
+    {
+      "source": "Bloomberg",
+      "title": "Worst of US Inflation May Be Over If Iran Peace Deal Sticks",
+      "link": "https://www.bloomberg.com/news/articles/2026-06-15/worst-of-us-inflation-may-be-over-if-iran-peace-deal-sticks",
+      "published_at": "2026-06-15T20:22:14+00:00",
+      "summary": "The peace agreement between the US and Iran, if it holds, suggests the worst of the war-driven inflation has likely passed, but the outlook for American consumers and the broader economy remains far from certain."
+    },
+    {
+      "source": "Bloomberg",
+      "title": "UBS' Falconio Pushes Out Expectations for Fed Rate Cut",
+      "link": "https://www.bloomberg.com/news/videos/2026-06-15/ubs-falconio-pushes-out-expectations-for-fed-rate-cut-video",
+      "published_at": "2026-06-15T20:20:55+00:00",
+      "summary": "UBS Head of Taxable Fixed Income Strategy Leslie Falconio says pressure on the Fed to hike rates is easing now that the US and Iran have reached a deal to reopen the Strait of Hormuz. She has now pushed out her call for a rate cut in 2027. (Source: Bloomberg)"
+    },
+    {
+      "source": "CNBC",
+      "title": "How the Strait of Hormuz reopening could unfold if the U.S.-Iran deal is implemented",
+      "link": "https://www.cnbc.com/2026/06/15/oil-tanker-strait-hormuz-traffic-us-iran-deal.html",
+      "published_at": "2026-06-15T20:20:29+00:00",
+      "summary": "Tanker traffic through Hormuz could quickly increase but it is unclear whether transits will approach prewar levels, according to Kpler."
+    },
+    {
+      "source": "CNBC",
+      "title": "Trump trusts Fed Chair Kevin Warsh. It matters for more than interest rates",
+      "link": "https://www.cnbc.com/2026/06/15/trump-warsh-fed-reshape.html",
+      "published_at": "2026-06-15T20:14:06+00:00",
+      "summary": "New Fed Chair Kevin Warsh is expected to hold interest rates steady this week, but President Donald Trump’s trust gives him room to pursue longer-term changes."
+    },
+    {
+      "source": "CNBC",
+      "title": "Nvidia plans to raise at least $20 billion in first debt sale since start of AI boom",
+      "link": "https://www.cnbc.com/2026/06/15/nvidia-plans-to-raise-about-20-billion-first-debt-sale-in-ai-boom.html",
+      "published_at": "2026-06-15T20:11:07+00:00",
+      "summary": "Nvidia is set raise capital in a debt sale for the first time since 2021, when the chipmaker was a fraction of its current size."
+    },
+    {
+      "source": "CNBC",
+      "title": "I want people to be millionaires — Jim Cramer's blueprint to make money in any market",
+      "link": "https://www.cnbc.com/2026/06/15/i-want-people-to-be-millionaires-cramer-blueprint-on-making-money-in-any-market.html",
+      "published_at": "2026-06-15T20:09:04+00:00",
+      "summary": "In this exclusive interview, Jim walks through how investors should think about identifying a small group of individual stocks to complement a diversified portfolio"
+    },
+    {
+      "source": "CNBC",
+      "title": "10-year Treasury yield slides as Iran deal drives rethink on Fed interest rate hikes",
+      "link": "https://www.cnbc.com/2026/06/15/treasury-yields-peace-deal-investor-fears-interest-rates.html",
+      "published_at": "2026-06-15T20:04:39+00:00",
+      "summary": "The 10-year Treasury yield fell on Monday following the announcement of a preliminary peace agreement between Washington and Tehran."
+    },
+    {
+      "source": "Bloomberg",
+      "title": "Test Your ETF Knowledge In Our IQ Test",
+      "link": "https://www.bloomberg.com/news/videos/2026-06-15/test-your-etf-knowledge-in-our-iq-test-video",
+      "published_at": "2026-06-15T19:59:05+00:00",
+      "summary": "Bloomberg's Scarlet Fu puts Katie Greifeld and Eric Balchunas to the test on \"Bloomberg ETF IQ\" in this week's edition of \"IQ Test.\" (Source: Bloomberg)"
+    },
+    {
+      "source": "Bloomberg",
+      "title": "US Asset Manager PGIM Flips Fed View, Sees Three Hikes This Year",
+      "link": "https://www.bloomberg.com/news/articles/2026-06-15/us-asset-manager-pgim-flips-fed-view-sees-three-hikes-this-year",
+      "published_at": "2026-06-15T19:50:01+00:00",
+      "summary": "US asset manager PGIM has staked out the fringe view that the Federal Reserve will raise interest rates three times this year to put the brakes on the economy — then reverse the hikes in 2027."
+    },
+    {
+      "source": "Bloomberg",
+      "title": "ETFs Have Never Been More Competitive: Tema's Pot",
+      "link": "https://www.bloomberg.com/news/videos/2026-06-15/etfs-have-never-been-more-competitive-tema-s-pot-video",
+      "published_at": "2026-06-15T19:47:00+00:00",
+      "summary": "Maurits Pot, CEO of Tema ETFs, joins Katie Greifeld, Scarlet Fu, and Eric Balchunas on \"Bloomberg ETF IQ.\" They discuss the Tema Space Innovators ETF (Ticker: NASA). (Source: Bloomberg)"
+    },
+    {
+      "source": "Bloomberg",
+      "title": "SpaceX ETF Frenzy as Multiple Leveraged ETFs Launch",
+      "link": "https://www.bloomberg.com/news/videos/2026-06-15/spacex-etf-frenzy-as-multiple-leveraged-etfs-launch-video",
+      "published_at": "2026-06-15T19:42:05+00:00",
+      "summary": "Sylvia Jablonski, CIO & co-founder of Defiance ETFs, joins Katie Greifeld, Scarlet Fu, and Eric Balchunas on \"Bloomberg ETF IQ.\" They discuss the Defiance Daily 2X Space ETF (Ticker: SPCL) and the flurry of SpaceX leveraged ETFs launched in the past week. (Source: Bloomberg)"
+    },
+    {
+      "source": "Bloomberg",
+      "title": "SpaceX Shares Jump in Second Day of Trading After Record IPO",
+      "link": "https://www.bloomberg.com/news/videos/2026-06-15/spacex-shares-jump-in-2nd-day-of-trading-after-ipo-video",
+      "published_at": "2026-06-15T19:32:28+00:00",
+      "summary": "Bloomberg's Bailey Lipschultz and David Bauer, head of equity capital markets Americas at JPMorgan, discuss SpaceX's success on the company's second day of trading after a record IPO Friday. Bauer said he sees a real 'investment thesis' driving SpaceX as the company contributes to reindustrializing America with 'new ecosystems' and the emergence of space as an industry. (Source: Bloomberg)"
+    },
+    {
+      "source": "CNBC",
+      "title": "Wall Street's fear gauge tumbles as traders bid up SpaceX shares",
+      "link": "https://www.cnbc.com/2026/06/15/wall-streets-fear-gauge-tumbles-as-traders-bid-up-spacex-shares.html",
+      "published_at": "2026-06-15T19:26:39+00:00",
+      "summary": "The biggest IPO has been digested without a hiccup, and Wall Street's so-called \"fear gauge\" is back below its long-term average."
+    },
+    {
+      "source": "Bloomberg",
+      "title": "May Inflation Data Might Be Peak as US-Iran Make Deal, Says Jason Draho",
+      "link": "https://www.bloomberg.com/news/videos/2026-06-15/may-inflation-data-may-be-peak-amid-us-iran-deal-draho-video",
+      "published_at": "2026-06-15T19:21:04+00:00",
+      "summary": "Jason Draho, head of asset allocation at UBS Chief Investment Office, said that even though oil flows and energy prices aren't expect to drop back to normal right after a deal between the US and Iran does into effect, May's inflation print may be the peak for year over year measure. Draho said that as energy prices go lower, inflation will start to level out and then dissipate. (Source: Bloomberg)"
+    },
+    {
+      "source": "Bloomberg",
+      "title": "ETF IQ 6/15/2026",
+      "link": "https://www.bloomberg.com/news/videos/2026-06-15/etf-iq-6-15-2026-video",
+      "published_at": "2026-06-15T19:14:36+00:00",
+      "summary": "\"Bloomberg ETF IQ\" focuses on the opportunities, risks and current trends tied to the trillions of dollars in the global exchange traded funds industry. Today's guests: BlackRock Global Fixed Income CIO Rick Rider, Defienace ETFs CIO & Co-Founder Sylvia Jablonski, and TEMA ETFs CEO Maurits Pot. (Source: Bloomberg)"
+    },
+    {
+      "source": "CNBC",
+      "title": "Oil prices fall about 5% as Iran deal is set to open Hormuz Strait",
+      "link": "https://www.cnbc.com/2026/06/14/oil-price-iran-war-strait-hormuz-peace-deal.html",
+      "published_at": "2026-06-15T19:12:03+00:00",
+      "summary": "\"The Deal with the Islamic Republic of Iran is now complete,\" Trump said in a Truth Social post."
+    },
+    {
+      "source": "CNBC",
+      "title": "Anthropic to meet with Trump administration over Mythos dispute",
+      "link": "https://www.cnbc.com/2026/06/15/anthropic-mythos-trump-ai.html",
+      "published_at": "2026-06-15T18:15:13+00:00",
+      "summary": "Anthropic received an export control directive that ordered the company to suspend access to its latest AI models by any foreign national."
+    },
+    {
+      "source": "CNBC",
+      "title": "Salesforce to buy AI customer service platform Fin for $3.6 billion to boost agentic offerings",
+      "link": "https://www.cnbc.com/2026/06/15/salesforce-ai-customer-service-fin-acquistion.html",
+      "published_at": "2026-06-15T18:06:01+00:00",
+      "summary": "Businesses are accelerating their agentic offerings for enterprises as competition heats up."
+    },
+    {
+      "source": "CNBC",
+      "title": "Vance says 'a lot' of Iran deal details to figure out, but U.S. has 'all the cards'",
+      "link": "https://www.cnbc.com/2026/06/15/vance-iran-deal-negotiations-nuclear.html",
+      "published_at": "2026-06-15T17:09:11+00:00",
+      "summary": "Vance on CNBC's \"Squawk Box\" expressed confidence that America has \"all the cards\" in subsequent talks with Iran."
+    },
+    {
+      "source": "Bloomberg",
+      "title": "SpaceX IPO Stress Tests Crypto’s Bid to Reinvent Stocks",
+      "link": "https://www.bloomberg.com/news/articles/2026-06-15/spacex-ipo-stress-tests-crypto-s-bid-to-reinvent-stock-markets",
+      "published_at": "2026-06-15T16:52:18+00:00",
+      "summary": "For years, crypto firms have argued that blockchain technology could create markets for private companies long before they reach Wall Street. SpaceX provided the industry’s biggest test yet. The results were mixed."
+    },
+    {
+      "source": "CNBC",
+      "title": "Dick's Sporting Goods expanding Lids shops to 100 locations",
+      "link": "https://www.cnbc.com/2026/06/15/dicks-sporting-goods-expanding-lids-shops-to-100-locations.html",
+      "published_at": "2026-06-15T16:47:20+00:00",
+      "summary": "Dick's Sporting Goods announced a partnership to bring Lids shops to 100 Dick's stores."
+    },
+    {
+      "source": "CNBC",
+      "title": "Oil tumbles on US-Iran deal framework: How one trader is playing the move",
+      "link": "https://www.cnbc.com/2026/06/15/oil-tumbles-on-us-iran-deal-framework-how-one-trader-is-playing-the-move.html",
+      "published_at": "2026-06-15T16:38:34+00:00",
+      "summary": "Airline stocks are rallying Monday and the U.S. Global Jets ETF (JETS) is on the verge of a new high for the year."
+    },
+    {
+      "source": "CNBC",
+      "title": "Warsh's Fed is likely to hold rates steady — what the leadership change could mean for your money",
+      "link": "https://www.cnbc.com/2026/06/15/warsh-fed-interest-rates.html",
+      "published_at": "2026-06-15T16:37:28+00:00",
+      "summary": "The Federal Reserve's June meeting, the first helmed by new Fed Chair Kevin Warsh, may impact many consumer borrowing and savings rates down the road."
+    },
+    {
+      "source": "CNBC",
+      "title": "Vance says U.S. expects Strait of Hormuz to be open 'toll free' long term",
+      "link": "https://www.cnbc.com/2026/06/15/vp-vance-says-us-expects-strait-of-hormuz-to-be-open-toll-free-long-term.html",
+      "published_at": "2026-06-15T16:11:28+00:00",
+      "summary": "The U.S. and Iran have issued conflicting statements on how the Strait of Hormuz will be managed."
+    },
+    {
+      "source": "CNBC",
+      "title": "U.S.-Iran deal explained: What we know — and what remains unresolved",
+      "link": "https://www.cnbc.com/2026/06/15/us-iran-deal-hormuz-markets.html",
+      "published_at": "2026-06-15T16:08:16+00:00",
+      "summary": "Stocks rose after a preliminary U.S.-Iran agreement, but questions remain over Hormuz, Israel and what follows a potential signing in Geneva."
+    },
+    {
+      "source": "Bloomberg",
+      "title": "Waste Management of Canada Sells C$700 Million of Bonds",
+      "link": "https://www.bloomberg.com/news/articles/2026-06-15/waste-management-of-canada-eyes-selling-c-750-million-of-bonds",
+      "published_at": "2026-06-15T16:05:47+00:00",
+      "summary": "Waste Management of Canada sold C$700 million ($500 million) of notes on Monday, according to people with knowledge of the matter."
+    },
+    {
+      "source": "CNBC",
+      "title": "Electronic Arts launches EA Advertising, a new way for brands to advertise 'directly into gameplay'",
+      "link": "https://www.cnbc.com/2026/06/15/electronic-arts-launches-a-new-way-to-advertise-directly-into-gameplay.html",
+      "published_at": "2026-06-15T15:29:02+00:00",
+      "summary": "Electronic Arts announced EA Advertising, a new way for brands to connect with fans through its portfolio of games, from stadium signs to custom content."
+    },
+    {
+      "source": "CNBC",
+      "title": "Ron Baron bought $1 billion of SpaceX shares in IPO, lifting stake to $25 billion",
+      "link": "https://www.cnbc.com/2026/06/15/ron-baron-bought-1-billion-of-spacex-shares-in-ipo-lifting-stake-to-25-billion.html",
+      "published_at": "2026-06-15T15:27:00+00:00",
+      "summary": "\"I think we're gonna make hundreds of billions of dollars,\" Baron said Monday on CNBC's \"Squawk Box.\""
+    },
+    {
+      "source": "Bloomberg",
+      "title": "Montreal’s REM Raises C$1.85 Billion in Four-Part Bond Sale",
+      "link": "https://www.bloomberg.com/news/articles/2026-06-15/montreal-transit-system-rem-to-sell-around-c-2-billion-bonds",
+      "published_at": "2026-06-15T15:26:40+00:00",
+      "summary": "The Réseau express métropolitain (REM), a light rail system in Greater Montreal, raised C$1.85 billion ($1.32 billion) in a bond sale, according to people with knowledge of the deal."
+    },
+    {
+      "source": "CNBC",
+      "title": "SpaceX doesn't have a timeline for its human missions to Mars. Kalshi traders say don't expect it this decade",
+      "link": "https://www.cnbc.com/2026/06/15/kalshi-traders-say-spacex-wont-get-to-mars-this-decade.html",
+      "published_at": "2026-06-15T14:38:19+00:00",
+      "summary": "Traders on prediction market platform Kalshi see only an 18% chance the Elon Musk-led company gets to Earth's neighbor by 2030."
+    },
+    {
+      "source": "CNBC",
+      "title": "Sen. Warren asks Trump if administration plans to raise Social Security retirement age",
+      "link": "https://www.cnbc.com/2026/06/15/warren-trump-social-security-retirement-age.html",
+      "published_at": "2026-06-15T14:34:46+00:00",
+      "summary": "In a new letter to President Donald Trump, Sen. Elizabeth Warren, D-Mass., asks what the administration's plans are for Social Security reform."
+    },
+    {
+      "source": "CNBC",
+      "title": "A year after Meta tapped Alexandr Wang to build a new AI model, Zuckerberg has to sell it",
+      "link": "https://www.cnbc.com/2026/06/14/meta-hired-alexandr-wang-to-build-ai-its-zuckerbergs-job-to-sell-it.html",
+      "published_at": "2026-06-15T14:04:03+00:00",
+      "summary": "Mark Zuckerberg's mega spending spree began a year ago, when he lured Alexandr Wang to oversee a new AI strategy. The results so far are underwhelming."
+    },
+    {
+      "source": "CNBC",
+      "title": "Fox to buy streaming device maker Roku for $22 billion",
+      "link": "https://www.cnbc.com/2026/06/15/fox-to-buy-roku.html",
+      "published_at": "2026-06-15T13:58:38+00:00",
+      "summary": "Fox, the owner of the news and sports networks, said it has reached a deal to acquire Roku for about $22 billion in enterprise value."
+    },
+    {
+      "source": "CNBC",
+      "title": "Strait of Hormuz traffic to return to normal as soon as August, Kalshi traders speculate",
+      "link": "https://www.cnbc.com/2026/06/15/strait-of-hormuz-traffic-to-return-to-normal-as-soon-as-august-kalshi-traders-speculate.html",
+      "published_at": "2026-06-15T13:53:47+00:00",
+      "summary": "Odds that the Strait of Hormuz traffic will return to normal before August surpassed 50%, following U.S. President Donald Trump's announcement."
+    },
+    {
+      "source": "CNBC",
+      "title": "SpaceX IPO shines a light on the product set to disrupt Wall Street",
+      "link": "https://www.cnbc.com/2026/06/15/spacex-ipo-shines-a-light-on-wall-streets-blockchain-challenger.html",
+      "published_at": "2026-06-15T13:43:31+00:00",
+      "summary": "Perp market traders had a form of early access to SpaceX, and the trading closely aligned with later prices in the stock market."
+    },
+    {
+      "source": "CNBC",
+      "title": "KFC leans into boneless chicken, new drinks as chain tries to regain market share",
+      "link": "https://www.cnbc.com/2026/06/15/kfc-menu-chicken.html",
+      "published_at": "2026-06-15T13:32:06+00:00",
+      "summary": "KFC is facing more competition from legacy giants and upstarts alike, thanks to the growing global popularity of chicken."
+    },
+    {
+      "source": "Bloomberg",
+      "title": "Nvidia Joins AI Borrowing Frenzy With $25 Billion Bond Sale",
+      "link": "https://www.bloomberg.com/news/articles/2026-06-15/nvidia-kicks-off-first-high-grade-bond-offering-since-2021",
+      "published_at": "2026-06-15T12:10:41+00:00",
+      "summary": "Chipmaking giant Nvidia Corp. sold $25 billion of high-grade bonds, joining a wave of jumbo debt offerings from tech heavyweights as investors clamor to get exposure to the artificial intelligence boom."
+    },
+    {
+      "source": "CNBC",
+      "title": "Trump says France must scrap tech 'sales tax' or face 100% wine tariffs: NY Post",
+      "link": "https://www.cnbc.com/2026/06/15/trump-france-tech-tax-wine-tariffs-champagne.html",
+      "published_at": "2026-06-15T11:14:45+00:00",
+      "summary": "President Donald Trump issued the threat ahead of this week's G7 summit in Évian-les-Bains, France."
+    },
+    {
+      "source": "Bloomberg",
+      "title": "Wafic Said’s Al Shams Accuses Braemar Hotels of Self-Dealing",
+      "link": "https://www.bloomberg.com/news/articles/2026-06-15/braemar-hotels-holder-al-shams-accuses-firm-of-self-dealing",
+      "published_at": "2026-06-15T11:02:44+00:00",
+      "summary": "Businessman Wafic Rida Said has criticized Braemar Hotels & Resorts Inc. over a series of recent transactions that he says amount to “a brazen act of self-dealing,” according to a letter sent to the real estate investment trust."
+    },
+    {
+      "source": "Bloomberg",
+      "title": "US Stocks Rally on Deal to Reopen Strait of Hormuz; SpaceX Gains",
+      "link": "https://www.bloomberg.com/news/articles/2026-06-15/us-stocks-set-to-rally-on-iran-deal-to-reopen-strait-of-hormuz",
+      "published_at": "2026-06-15T08:16:07+00:00",
+      "summary": "US stocks rose sharply after the US and Iran reached an interim deal to reopen the Strait of Hormuz, sending oil prices lower and easing concern about inflation ahead of Kevin Warsh’s first meeting as chairman of the Federal Reserve this week. SpaceX shares advanced 20%, helping boost risk-on sentiment."
+    },
+    {
+      "source": "Bloomberg",
+      "title": "SpaceX Surges 20% in Second Day to Add $412 Billion in Value",
+      "link": "https://www.bloomberg.com/news/articles/2026-06-15/spacex-shares-rise-set-to-extend-gains-after-record-ipo-mqexlibz",
+      "published_at": "2026-06-15T08:08:26+00:00",
+      "summary": "SpaceX shares jumped in their second day of trading, adding to gains following a blockbuster debut that instantly vaulted it into the ranks of the world’s most valuable public companies."
+    },
+    {
+      "source": "Bloomberg",
+      "title": "What the US-Iran Peace Deal Means for the Strait of Hormuz",
+      "link": "https://www.bloomberg.com/news/articles/2026-06-15/strait-of-hormuz-what-the-us-iran-interim-peace-deal-means-for-oil-and-shipping",
+      "published_at": "2026-06-15T05:02:47+00:00",
+      "summary": "No region of the world produces more oil and gas than the countries straddling the Persian Gulf. Most of this energy can only be exported aboard tankers that cross the Strait of Hormuz — a waterway that’s effectively been closed for more than three months since the US and Israel launched strikes against Iran in late February."
+    },
+    {
+      "source": "Bloomberg",
+      "title": "Shippers and Oil Giants Seek Clarity on US-Iran Peace Deal",
+      "link": "https://www.bloomberg.com/news/articles/2026-06-15/shipowners-seek-clarity-on-hormuz-deal-as-600-vessels-eye-exit",
+      "published_at": "2026-06-15T02:36:45+00:00",
+      "summary": "A US-Iran deal intended to reopen the Strait of Hormuz within days left many of the world’s top shipowners, traders and oil producer nations seeking clarity about the terms of the pact that’s pivotal to the global economy."
+    }
+  ],
+  "recommendations": {
+    "up": [
+      {
+        "symbol": "403870",
+        "name": "HPSP",
+        "direction": "up",
+        "score": 8.81,
+        "reasons": [
+          "SOX +9.24%",
+          "TSMC +3.42%",
+          "AMD +11.61%",
+          "AI/반도체 뉴스 빈도 증가"
+        ],
+        "risks": []
+      },
+      {
+        "symbol": "005930",
+        "name": "삼성전자",
+        "direction": "up",
+        "score": 8.36,
+        "reasons": [
+          "SOX +9.24%",
+          "XLK +4.13%",
+          "Nvidia +1.83%",
+          "AMD +11.61%"
+        ],
+        "risks": []
+      },
+      {
+        "symbol": "042700",
+        "name": "한미반도체",
+        "direction": "up",
+        "score": 8.28,
+        "reasons": [
+          "SOX +9.24%",
+          "Nvidia +1.83%",
+          "AMD +11.61%",
+          "AI/반도체 뉴스 빈도 증가"
+        ],
+        "risks": []
+      },
+      {
+        "symbol": "000660",
+        "name": "SK하이닉스",
+        "direction": "up",
+        "score": 8.23,
+        "reasons": [
+          "SOX +9.24%",
+          "Nvidia +1.83%",
+          "AMD +11.61%",
+          "TSMC +3.42%"
+        ],
+        "risks": []
+      },
+      {
+        "symbol": "035720",
+        "name": "카카오",
+        "direction": "up",
+        "score": 3.69,
+        "reasons": [
+          "Nasdaq +2.91%",
+          "XLK +4.13%",
+          "Meta +1.38%"
+        ],
+        "risks": []
+      },
+      {
+        "symbol": "035420",
+        "name": "NAVER",
+        "direction": "up",
+        "score": 3.08,
+        "reasons": [
+          "Nasdaq +2.91%",
+          "XLK +4.13%",
+          "Meta +1.38%"
+        ],
+        "risks": []
+      },
+      {
+        "symbol": "373220",
+        "name": "LG에너지솔루션",
+        "direction": "up",
+        "score": 2.65,
+        "reasons": [
+          "Tesla +0.54%",
+          "Nasdaq +2.91%"
+        ],
+        "risks": []
+      },
+      {
+        "symbol": "006400",
+        "name": "삼성SDI",
+        "direction": "up",
+        "score": 2.65,
+        "reasons": [
+          "Tesla +0.54%",
+          "Nasdaq +2.91%"
+        ],
+        "risks": []
+      }
+    ],
+    "down": [
+      {
+        "symbol": "010950",
+        "name": "S-Oil",
+        "direction": "down",
+        "score": -7.4,
+        "reasons": [
+          "XLE -4.77%",
+          "WTI -9.89%"
+        ],
+        "risks": [
+          "유가 약세는 정유/에너지 투자심리 부담"
+        ]
+      },
+      {
+        "symbol": "096770",
+        "name": "SK이노베이션",
+        "direction": "down",
+        "score": -5.89,
+        "reasons": [
+          "XLE -4.77%",
+          "WTI -9.89%",
+          "Tesla +0.54%"
+        ],
+        "risks": [
+          "유가 약세는 정유/에너지 투자심리 부담"
+        ]
+      },
+      {
+        "symbol": "051910",
+        "name": "LG화학",
+        "direction": "down",
+        "score": -1.13,
+        "reasons": [
+          "Tesla +0.54%",
+          "WTI -9.89%"
+        ],
+        "risks": []
+      }
+    ]
+  },
+  "markdown": "# 미국 마감 후 한국 증시 영향 브리프\n\n- 생성시각: 2026-06-16T07:22:25+09:00\n- 뉴스 기준: 최근 24시간\n\n## 핵심 요약\n- 미국 주요 지수는 위험선호 우위로 마감했습니다.\n- 섹터 강세는 SOX(+9.24%)가 주도했습니다.\n- 섹터 약세는 XLE(-4.77%)가 두드러졌습니다.\n- 미 10년물 금리 변화율은 -1.30%입니다.\n- DXY는 -0.29%로 외국인 수급에 영향을 줄 수 있습니다.\n\n## 상승 가능 후보\n- HPSP(403870) score 8.81: SOX +9.24%; TSMC +3.42%; AMD +11.61%; AI/반도체 뉴스 빈도 증가\n- 삼성전자(005930) score 8.36: SOX +9.24%; XLK +4.13%; Nvidia +1.83%; AMD +11.61%\n- 한미반도체(042700) score 8.28: SOX +9.24%; Nvidia +1.83%; AMD +11.61%; AI/반도체 뉴스 빈도 증가\n- SK하이닉스(000660) score 8.23: SOX +9.24%; Nvidia +1.83%; AMD +11.61%; TSMC +3.42%\n- 카카오(035720) score 3.69: Nasdaq +2.91%; XLK +4.13%; Meta +1.38%\n- NAVER(035420) score 3.08: Nasdaq +2.91%; XLK +4.13%; Meta +1.38%\n- LG에너지솔루션(373220) score 2.65: Tesla +0.54%; Nasdaq +2.91%\n- 삼성SDI(006400) score 2.65: Tesla +0.54%; Nasdaq +2.91%\n\n## 하락 위험 후보\n- S-Oil(010950) score -7.4: XLE -4.77%; WTI -9.89% / 체크: 유가 약세는 정유/에너지 투자심리 부담\n- SK이노베이션(096770) score -5.89: XLE -4.77%; WTI -9.89%; Tesla +0.54% / 체크: 유가 약세는 정유/에너지 투자심리 부담\n- LG화학(051910) score -1.13: Tesla +0.54%; WTI -9.89%\n\n## 주요 데이터\n- S&P500: +2.01%\n- Nasdaq: +2.91%\n- Dow Jones: +1.74%\n- Russell2000: +3.84%\n- SOX: +9.24%\n- XLK: +4.13%\n- XLE: -4.77%\n- XLF: +3.06%\n- XLV: +0.16%\n- Nvidia: +1.83%\n- AMD: +11.61%\n- TSMC: +3.42%\n- Microsoft: -2.91%\n- Apple: -1.70%\n- Tesla: +0.54%\n- Amazon: +0.33%\n- Meta: +1.38%\n- 미국채 10년물 금리: -1.30%\n- DXY: -0.29%\n- WTI: -9.89%\n- 천연가스: -1.13%\n- 금 가격: +5.46%\n\n## 최근 뉴스\n- [Bloomberg] Oil Holds Losses After Iran Deal Spurs Stock Rally: Markets Wrap (2026-06-15T22:06:05+00:00)\n- [Bloomberg] Oil Steadies Near Lowest Since March on Outlook for Hormuz Deal (2026-06-15T22:01:18+00:00)\n- [Bloomberg] China Built the Last Steel Boom. India’s Will Be Different (2026-06-15T22:00:15+00:00)\n- [Bloomberg] MSG Should Split Into Two Companies, Ariel's John Rogers Says (2026-06-15T21:40:36+00:00)\n- [Bloomberg] Where the US, Israel and Iran Stand on a Deal to End Months of War (2026-06-15T21:40:08+00:00)\n- [CNBC] The Iran deal came just in time as Strategic Petroleum Reserve hits lowest level since 1983 (2026-06-15T21:13:48+00:00)\n- [Bloomberg] Bolivia Tells Investors FX Unification, IMF Deal Coming Soon (2026-06-15T21:00:11+00:00)\n- [Bloomberg] Blackstone’s Ancestry Hires Bank of America for $2 Billion Loan (2026-06-15T20:59:04+00:00)\n- [Bloomberg] West Texas Gas Rises Above Zero for First Time in Four Months (2026-06-15T20:56:46+00:00)\n- [CNBC] Centene to offer buyouts to some employees as health insurer cuts costs (2026-06-15T20:50:35+00:00)"
+}

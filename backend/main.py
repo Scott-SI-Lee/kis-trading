@@ -56,6 +56,7 @@ from stock_master import stock_master, schedule_daily_refresh
 from lgbm_optimizer import LGBMOptimizer
 from intraday_ai import IntradayAIEngine, MODEL_DIR as INTRADAY_MODEL_DIR, rank_candidates
 from intraday_trader import IntradayAutoTrader
+from us_close_analysis import build_us_close_report, schedule_us_close_job, send_latest_us_close_telegram
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -86,6 +87,7 @@ intraday_ai: Optional[IntradayAIEngine] = None
 intraday_rank_state: dict = {"running": False, "stop": False, "result": []}
 intraday_batch_state: dict = {"running": False, "stop": False}
 intraday_trader: Optional[IntradayAutoTrader] = None
+us_close_scheduler_task: Optional[asyncio.Task] = None
 
 # ── .env에서 자격증명 로드 (모의/실전 분리) ─────────────────────
 def load_credentials_from_env(mode: str = "mock") -> Optional[dict]:
@@ -377,7 +379,7 @@ async def price_ws(websocket: WebSocket, symbol: str):
 @app.on_event("startup")
 async def auto_auth_from_env():
     """서버 시작 시 .env 자동 인증 + 종목 마스터 로드"""
-    global kis
+    global kis, us_close_scheduler_task
 
     # 종목 마스터 백그라운드 로드 (인증과 병렬)
     asyncio.create_task(stock_master.ensure_loaded())
@@ -396,6 +398,21 @@ async def auto_auth_from_env():
     else:
         logger.info("ℹ️  .env 미설정 — 대시보드에서 수동 입력 필요")
 
+    # 미국 마감 분석 스케줄러
+    if os.getenv("US_CLOSE_SCHEDULE_ENABLED", "true").lower() not in ("0", "false", "no", "off"):
+        if us_close_scheduler_task is None or us_close_scheduler_task.done():
+            us_close_scheduler_task = asyncio.create_task(
+                schedule_us_close_job(
+                    hour_kst=int(os.getenv("US_CLOSE_SCHEDULE_HOUR", "6")),
+                    minute_kst=int(os.getenv("US_CLOSE_SCHEDULE_MINUTE", "0")),
+                    news_window_hours=int(os.getenv("US_CLOSE_NEWS_WINDOW_HOURS", "24")),
+                    news_per_source=int(os.getenv("US_CLOSE_NEWS_PER_SOURCE", "10")),
+                    output_dir=os.getenv("US_CLOSE_OUTPUT_DIR"),
+                    telegram=os.getenv("US_CLOSE_TELEGRAM_ENABLED", "true").lower() in ("1", "true", "yes", "on"),
+                )
+            )
+            logger.info("🗓️  미국 마감 분석 스케줄러 시작")
+
 # ── .env 상태 조회 API ──────────────────────────────────────
 @app.get("/api/env-status")
 async def env_status():
@@ -412,6 +429,36 @@ async def env_status():
         "profile": ENV_PROFILE,
         "env_file": str(_env_path),
         "env_loaded": _loaded,
+    }
+
+# ── 미국 마감 뉴스/시장 분석 ─────────────────────────────────
+@app.get("/api/us-close-analysis")
+async def us_close_analysis(hours: int = 24, news_per_source: int = 10):
+    if hours < 1 or hours > 72:
+        raise HTTPException(status_code=400, detail="hours는 1~72 사이여야 합니다")
+    if news_per_source < 1 or news_per_source > 30:
+        raise HTTPException(status_code=400, detail="news_per_source는 1~30 사이여야 합니다")
+    return await build_us_close_report(
+        news_window_hours=hours,
+        news_per_source=news_per_source,
+    )
+
+@app.post("/api/us-close-analysis/send-telegram")
+async def us_close_analysis_send_telegram(hours: int = 24, news_per_source: int = 10):
+    if hours < 1 or hours > 72:
+        raise HTTPException(status_code=400, detail="hours는 1~72 사이여야 합니다")
+    if news_per_source < 1 or news_per_source > 30:
+        raise HTTPException(status_code=400, detail="news_per_source는 1~30 사이여야 합니다")
+    report = await send_latest_us_close_telegram(
+        news_window_hours=hours,
+        news_per_source=news_per_source,
+    )
+    return {
+        "ok": True,
+        "telegram_sent": report.get("telegram_sent", False),
+        "telegram_detail": report.get("telegram_detail"),
+        "generated_at_kst": report.get("generated_at_kst"),
+        "summary": report.get("summary", []),
     }
 
 # ── .env 계좌로 전환 (모의 ↔ 실전) ─────────────────────────

@@ -147,6 +147,24 @@ python3 -m http.server 3000
 - AI 확률에 거래대금 점수와 돌파 점수를 곱해 최종 점수를 만들고 저장 모델 보유 종목을 실시간 랭킹
 - 익절/손절, 트레일링 스탑, 15분 시간청산 전략별 백테스트 결과 비교
 
+### 미국 마감 후 한국 증시 브리프
+- S&P500, Nasdaq, Dow, Russell2000, SOX, XLK/XLE/XLF/XLV, 주요 미국 빅테크, 금리/달러/원자재 데이터를 Yahoo Finance에서 수집
+- Reuters, Bloomberg, CNBC, Investing, Yahoo Finance RSS에서 최근 24시간 뉴스만 수집
+- 미국 마감 데이터와 뉴스 키워드를 종합해 한국 증시 상승 후보와 하락 위험 후보를 간결한 근거와 함께 제시
+- 서버 없이 CLI로 실행 가능
+- Reuters RSS는 환경에 따라 기본값이 비어 있을 수 있으니, 필요하면 `US_CLOSE_REUTERS_RSS`로 직접 지정하세요
+- FastAPI 서버를 띄우면 오전 6시 KST 자동 실행 스케줄러도 함께 시작됩니다
+- 결과 파일은 기본적으로 `backend/reports/latest.json`와 `backend/reports/latest.md`에 저장됩니다
+- 텔레그램 전송은 `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`를 설정하고 `US_CLOSE_TELEGRAM_ENABLED=true`로 켤 수 있습니다
+
+```bash
+cd backend
+python3 us_close_analysis.py --hours 24
+python3 us_close_analysis.py --json --output ../us-close-report.json
+python3 us_close_analysis.py --schedule
+python3 us_close_analysis.py --telegram
+```
+
 ---
 
 ## 📡 API 엔드포인트
@@ -175,6 +193,7 @@ python3 -m http.server 3000
 | `GET` | `/api/intraday-ai/predict/{symbol}` | 저장된 장중 AI 모델로 최신 1분봉 스코어링 |
 | `POST` | `/api/intraday-ai/rank` | 저장 모델 보유 종목 실시간 랭킹 |
 | `GET` | `/api/intraday-ai/rank/result` | 최근 장중 AI 랭킹 결과 |
+| `GET` | `/api/us-close-analysis` | 미국 마감 데이터/최근 뉴스 기반 한국 증시 브리프 |
 | `WS` | `/ws` | 실시간 알림 WebSocket |
 | `WS` | `/ws/price/{symbol}` | 실시간 시세 WebSocket |
 

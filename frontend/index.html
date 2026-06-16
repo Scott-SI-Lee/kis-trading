@@ -367,6 +367,9 @@
     <button class="nav-item" onclick="showPage('intraday-trader',this)">
       <span class="nav-icon">🚀</span> 단타 자동매매
     </button>
+    <button class="nav-item" onclick="showPage('us-close',this)">
+      <span class="nav-icon">📰</span> 미국 마감 분석
+    </button>
     <div class="nav-section" style="margin-top:auto;">계좌</div>
     <button class="nav-item" onclick="showPage('balance',this)">
       <span class="nav-icon">💼</span> 잔고 / 포지션
@@ -735,6 +738,110 @@
               ⚠️ <strong style="color:var(--yellow)">모의투자</strong>로 먼저 테스트하세요<br>
               📌 포지션 없을 때만 매수, 보유 중일 때만 매도<br>
               🔄 전략 로그는 최대 200건 보관
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ 미국 마감 분석 ══ -->
+    <div id="page-us-close" class="page">
+      <div class="two-col" style="align-items:start; grid-template-columns:minmax(320px, 0.7fr) minmax(0, 1.3fr);">
+        <div style="display:flex; flex-direction:column; gap:12px;">
+          <div class="panel">
+            <div class="panel-header">
+              <span class="panel-title">미국 마감 분석 실행</span>
+              <span class="badge badge-live" id="us-close-status">READY</span>
+            </div>
+            <div class="panel-body" style="display:flex; flex-direction:column; gap:12px;">
+              <div style="background:var(--accent-dim); border:1px solid rgba(59,130,246,0.2); border-radius:8px; padding:12px; font-size:12px; color:var(--muted); line-height:1.7;">
+                미국 지수, 섹터, 주요 종목, 금리/달러/원자재와 최근 24시간 뉴스를 합쳐 한국 장 시작 전 참고용 브리프를 만듭니다.
+              </div>
+              <div class="form-grid">
+                <div class="form-group">
+                  <label class="form-label">뉴스 조회 시간</label>
+                  <input class="form-input" id="us-close-hours" type="number" min="1" max="72" value="24" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">소스별 기사 수</label>
+                  <input class="form-input" id="us-close-per-source" type="number" min="1" max="30" value="10" />
+                </div>
+              </div>
+              <div class="btn-group">
+                <button class="btn btn-primary" onclick="runUSCloseAnalysis()" style="flex:1; padding:12px;">▶ 분석 실행</button>
+                <button class="btn btn-outline" onclick="loadUSCloseAnalysis()" style="padding:12px 14px;">새로고침</button>
+                <button class="btn btn-success" onclick="sendUSCloseTelegram()" style="padding:12px 14px;">텔레그램 전송</button>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:6px; font-size:12px; color:var(--muted);">
+                <div>생성시각: <span id="us-close-generated" style="font-family:var(--mono); color:var(--text);">-</span></div>
+                <div>뉴스 신호: <span id="us-close-news-signal" style="font-family:var(--mono); color:var(--text);">-</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header"><span class="panel-title">핵심 요약</span></div>
+            <div class="panel-body">
+              <div id="us-close-summary" style="display:flex; flex-direction:column; gap:8px; color:var(--text); line-height:1.7;">
+                <div style="color:var(--muted);">분석을 실행하면 요약이 표시됩니다.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:12px;">
+          <div class="panel">
+            <div class="panel-header"><span class="panel-title">상승 가능 후보</span></div>
+            <div class="panel-body" style="padding:0; overflow:auto;">
+              <table class="data-table">
+                <thead><tr><th>종목</th><th>점수</th><th>근거</th></tr></thead>
+                <tbody id="us-close-up-body">
+                  <tr><td colspan="3" style="text-align:center; color:var(--muted); padding:24px;">대기중</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header"><span class="panel-title">하락 위험 후보</span></div>
+            <div class="panel-body" style="padding:0; overflow:auto;">
+              <table class="data-table">
+                <thead><tr><th>종목</th><th>점수</th><th>리스크</th></tr></thead>
+                <tbody id="us-close-down-body">
+                  <tr><td colspan="3" style="text-align:center; color:var(--muted); padding:24px;">대기중</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header"><span class="panel-title">주요 데이터</span></div>
+            <div class="panel-body" style="padding:0; overflow:auto;">
+              <table class="data-table">
+                <thead><tr><th>항목</th><th>변동률</th><th>상태</th></tr></thead>
+                <tbody id="us-close-market-body">
+                  <tr><td colspan="3" style="text-align:center; color:var(--muted); padding:24px;">대기중</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header"><span class="panel-title">최근 뉴스</span></div>
+            <div class="panel-body" style="padding:0; overflow:auto;">
+              <table class="data-table">
+                <thead><tr><th>소스</th><th>제목</th><th>시간</th></tr></thead>
+                <tbody id="us-close-news-body">
+                  <tr><td colspan="3" style="text-align:center; color:var(--muted); padding:24px;">대기중</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header"><span class="panel-title">원문 JSON</span></div>
+            <div class="panel-body">
+              <textarea id="us-close-json" class="form-input" readonly style="width:100%; height:240px; font-family:var(--mono); font-size:11px; resize:vertical; line-height:1.6;"></textarea>
             </div>
           </div>
         </div>
@@ -1626,6 +1733,9 @@ function showPage(name, btn) {
     loadIntradayModels();
     loadIntradayRankResult();
   }
+  if (name === 'us-close') {
+    loadUSCloseAnalysis();
+  }
   if (name === 'strategy') {
     loadStrategyStatus();
     loadStrategyLog();
@@ -1650,6 +1760,149 @@ function escapeHtml(str) {
   return String(str ?? '').replace(/[&<>"']/g, ch => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   }[ch]));
+}
+
+function fmtSignedPct(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 'N/A';
+  const sign = n > 0 ? '+' : '';
+  return `${sign}${n.toFixed(2)}%`;
+}
+
+function badgeForPct(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 'badge-hold';
+  if (n > 0) return 'badge-buy';
+  if (n < 0) return 'badge-sell';
+  return 'badge-hold';
+}
+
+function safeJoin(list, fallback = '-') {
+  return Array.isArray(list) && list.length ? list.join('; ') : fallback;
+}
+
+async function loadUSCloseAnalysis() {
+  const hoursEl = document.getElementById('us-close-hours');
+  const perSourceEl = document.getElementById('us-close-per-source');
+  const hours = hoursEl ? Number(hoursEl.value || 24) : 24;
+  const perSource = perSourceEl ? Number(perSourceEl.value || 10) : 10;
+  const res = await fetch(`${API}/us-close-analysis?hours=${encodeURIComponent(hours)}&news_per_source=${encodeURIComponent(perSource)}`);
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.detail || '분석 불러오기 실패');
+  }
+  renderUSCloseAnalysis(data);
+  return data;
+}
+
+async function runUSCloseAnalysis() {
+  const status = document.getElementById('us-close-status');
+  try {
+    if (status) {
+      status.textContent = 'RUNNING';
+      status.className = 'badge badge-hold';
+    }
+    await loadUSCloseAnalysis();
+    if (status) {
+      status.textContent = 'READY';
+      status.className = 'badge badge-live';
+    }
+    toast('미국 마감 분석을 갱신했습니다', 'success');
+  } catch (e) {
+    if (status) {
+      status.textContent = 'ERROR';
+      status.className = 'badge badge-sell';
+    }
+    toast('미국 마감 분석 실패: ' + e.message, 'error');
+  }
+}
+
+async function sendUSCloseTelegram() {
+  const hoursEl = document.getElementById('us-close-hours');
+  const perSourceEl = document.getElementById('us-close-per-source');
+  const hours = hoursEl ? Number(hoursEl.value || 24) : 24;
+  const perSource = perSourceEl ? Number(perSourceEl.value || 10) : 10;
+  try {
+    const res = await fetch(`${API}/us-close-analysis/send-telegram?hours=${encodeURIComponent(hours)}&news_per_source=${encodeURIComponent(perSource)}`, {
+      method: 'POST'
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || '텔레그램 전송 실패');
+    if (data.telegram_sent) {
+      toast('텔레그램으로 전송했습니다', 'success');
+    } else {
+      const detail = data.telegram_detail || '텔레그램 전송 설정이 비활성화되어 있습니다';
+      toast(`텔레그램 전송 실패: ${detail}`, 'error');
+    }
+  } catch (e) {
+    toast('텔레그램 전송 실패: ' + e.message, 'error');
+  }
+}
+
+function renderUSCloseAnalysis(data) {
+  const summary = document.getElementById('us-close-summary');
+  const upBody = document.getElementById('us-close-up-body');
+  const downBody = document.getElementById('us-close-down-body');
+  const marketBody = document.getElementById('us-close-market-body');
+  const newsBody = document.getElementById('us-close-news-body');
+  const jsonBox = document.getElementById('us-close-json');
+  const generated = document.getElementById('us-close-generated');
+  const signal = document.getElementById('us-close-news-signal');
+
+  if (generated) generated.textContent = data.generated_at_kst || '-';
+  if (signal) {
+    const s = data.news_signal || {};
+    signal.textContent = `positive ${s.positive_hits ?? 0} / negative ${s.negative_hits ?? 0} / net ${s.net_score ?? 0}`;
+  }
+
+  if (summary) {
+    const summaryItems = Array.isArray(data.summary) ? data.summary : [];
+    summary.innerHTML = summaryItems.length
+      ? summaryItems.map(item => `<div style="padding:10px 12px; background:var(--surface2); border:1px solid var(--border); border-radius:8px;">${escapeHtml(item)}</div>`).join('')
+      : '<div style="color:var(--muted);">요약이 없습니다.</div>';
+  }
+
+  const up = (data.recommendations && data.recommendations.up) || [];
+  const down = (data.recommendations && data.recommendations.down) || [];
+  upBody.innerHTML = up.length ? up.map(item => `
+    <tr>
+      <td><div style="font-weight:500;">${escapeHtml(item.name)} <span style="font-family:var(--mono); color:var(--muted);">(${escapeHtml(item.symbol)})</span></div></td>
+      <td><span class="badge ${item.direction === 'up' ? 'badge-buy' : 'badge-hold'}">${Number(item.score || 0).toFixed(2)}</span></td>
+      <td style="white-space:normal; line-height:1.6;">${escapeHtml(safeJoin(item.reasons))}</td>
+    </tr>
+  `).join('') : '<tr><td colspan="3" style="text-align:center; color:var(--muted); padding:24px;">추천 없음</td></tr>';
+
+  downBody.innerHTML = down.length ? down.map(item => `
+    <tr>
+      <td><div style="font-weight:500;">${escapeHtml(item.name)} <span style="font-family:var(--mono); color:var(--muted);">(${escapeHtml(item.symbol)})</span></div></td>
+      <td><span class="badge badge-sell">${Number(item.score || 0).toFixed(2)}</span></td>
+      <td style="white-space:normal; line-height:1.6;">${escapeHtml(safeJoin(item.risks))}</td>
+    </tr>
+  `).join('') : '<tr><td colspan="3" style="text-align:center; color:var(--muted); padding:24px;">위험 후보 없음</td></tr>';
+
+  const market = Array.isArray(data.market_data) ? data.market_data : [];
+  marketBody.innerHTML = market.length ? market.map(item => `
+    <tr>
+      <td><div style="font-weight:500;">${escapeHtml(item.label)}</div><div style="font-size:11px; color:var(--muted); font-family:var(--mono);">${escapeHtml(item.symbol)}</div></td>
+      <td><span class="badge ${badgeForPct(item.change_pct)}">${fmtSignedPct(item.change_pct)}</span></td>
+      <td style="white-space:normal; line-height:1.6;">${item.error ? escapeHtml(item.error) : 'OK'}</td>
+    </tr>
+  `).join('') : '<tr><td colspan="3" style="text-align:center; color:var(--muted); padding:24px;">데이터 없음</td></tr>';
+
+  const news = Array.isArray(data.news) ? data.news : [];
+  newsBody.innerHTML = news.length ? news.map(item => `
+    <tr>
+      <td><span class="badge badge-live">${escapeHtml(item.source)}</span></td>
+      <td style="white-space:normal; line-height:1.6;">
+        <a href="${escapeHtml(item.link)}" target="_blank" rel="noreferrer" style="color:var(--text); text-decoration:none;">${escapeHtml(item.title)}</a>
+      </td>
+      <td style="font-family:var(--mono); color:var(--muted);">${escapeHtml(String(item.published_at || '').replace('T', ' ').slice(0, 19))}</td>
+    </tr>
+  `).join('') : '<tr><td colspan="3" style="text-align:center; color:var(--muted); padding:24px;">최근 뉴스 없음</td></tr>';
+
+  if (jsonBox) {
+    jsonBox.value = JSON.stringify(data, null, 2);
+  }
 }
 
 const LGBM_PARAM_HELP = {
@@ -3568,7 +3821,6 @@ async function autoLoadLatestLGBMModel(symbol) {
   const data = await loadLGBMModelBySymbol(symbol, label, {silent: true});
   if (!data) return;
   lgbmAutoLoadedSymbol = symbol;
-  await loadSavedLGBMModels();
   toast(`✅ LightGBM 최적화 완료 · ${symbol} 모델 자동 불러오기 완료`, 'success');
 }
 
