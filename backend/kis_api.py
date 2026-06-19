@@ -161,18 +161,8 @@ class KISApi:
         국내주식 당일 분봉 조회.
         KIS 문서의 주식당일분봉조회(inquire-time-itemchartprice)를 사용합니다.
         """
-        now_hhmmss = input_hour or datetime.now().strftime("%H%M%S")
-        data = await self._get(
-            "/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice",
-            tr_id="FHKST03010200",
-            params={
-                "FID_COND_MRKT_DIV_CODE": "J",
-                "FID_INPUT_ISCD": symbol,
-                "FID_INPUT_HOUR_1": now_hhmmss,
-                "FID_PW_DATA_INCU_YN": "N",
-                "FID_ETC_CLS_CODE": "",
-            },
-        )
+        if count <= 0:
+            return []
 
         def to_int(row: dict, *keys: str) -> int:
             for key in keys:
@@ -184,29 +174,85 @@ class KISApi:
                         pass
             return 0
 
-        rows = data.get("output2") or data.get("output") or []
-        result = []
+        def normalize_time(value: str) -> str:
+            digits = "".join(ch for ch in str(value or "") if ch.isdigit())
+            if not digits:
+                return ""
+            if len(digits) <= 4:
+                return digits.zfill(4) + "00"
+            return digits.zfill(6)[:6]
+
+        def previous_input_hour(date: str, time: str) -> str:
+            try:
+                cursor_dt = datetime.strptime(f"{date}{normalize_time(time)}", "%Y%m%d%H%M%S")
+                return (cursor_dt - timedelta(seconds=1)).strftime("%H%M%S")
+            except Exception:
+                return ""
+
         today = datetime.now().strftime("%Y%m%d")
-        for row in rows[:count]:
-            date = row.get("stck_bsop_date") or row.get("bsop_date") or today
-            time = row.get("stck_cntg_hour") or row.get("cntg_hour") or row.get("stck_cntg_time") or ""
-            close = to_int(row, "stck_prpr", "stck_clpr", "close")
-            open_price = to_int(row, "stck_oprc", "open") or close
-            high = to_int(row, "stck_hgpr", "high") or close
-            low = to_int(row, "stck_lwpr", "low") or close
-            volume = to_int(row, "cntg_vol", "acml_vol", "volume")
-            result.append({
-                "date": date,
-                "time": time,
-                "datetime": f"{date}{time}",
-                "open": open_price,
-                "high": high,
-                "low": low,
-                "close": close,
-                "volume": volume,
-                "turnover": close * volume,
-            })
-        return list(reversed(result))
+        cursor_hour = normalize_time(input_hour) if input_hour else datetime.now().strftime("%H%M%S")
+        bars_by_key: dict[str, dict] = {}
+        max_pages = max(1, min(20, (count // 30) + 8))
+
+        for _ in range(max_pages):
+            data = await self._get(
+                "/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice",
+                tr_id="FHKST03010200",
+                params={
+                    "FID_COND_MRKT_DIV_CODE": "J",
+                    "FID_INPUT_ISCD": symbol,
+                    "FID_INPUT_HOUR_1": cursor_hour,
+                    "FID_PW_DATA_INCU_YN": "N",
+                    "FID_ETC_CLS_CODE": "",
+                },
+            )
+
+            rows = data.get("output2") or data.get("output") or []
+            if not rows:
+                break
+
+            before_count = len(bars_by_key)
+            oldest_date = ""
+            oldest_time = ""
+
+            for row in rows:
+                date = row.get("stck_bsop_date") or row.get("bsop_date") or today
+                time = normalize_time(row.get("stck_cntg_hour") or row.get("cntg_hour") or row.get("stck_cntg_time") or "")
+                if not time:
+                    continue
+
+                key = f"{date}{time}"
+                if not oldest_date or key < f"{oldest_date}{oldest_time}":
+                    oldest_date = date
+                    oldest_time = time
+
+                close = to_int(row, "stck_prpr", "stck_clpr", "close")
+                open_price = to_int(row, "stck_oprc", "open") or close
+                high = to_int(row, "stck_hgpr", "high") or close
+                low = to_int(row, "stck_lwpr", "low") or close
+                volume = to_int(row, "cntg_vol", "acml_vol", "volume")
+                bars_by_key[key] = {
+                    "date": date,
+                    "time": time,
+                    "datetime": key,
+                    "open": open_price,
+                    "high": high,
+                    "low": low,
+                    "close": close,
+                    "volume": volume,
+                    "turnover": close * volume,
+                }
+
+            if len(bars_by_key) >= count or len(bars_by_key) == before_count or not oldest_date:
+                break
+
+            next_cursor = previous_input_hour(oldest_date, oldest_time)
+            if not next_cursor or next_cursor == cursor_hour:
+                break
+            cursor_hour = next_cursor
+
+        result = [bars_by_key[key] for key in sorted(bars_by_key)]
+        return result[-count:]
 
     # ── 현재 호가/예상체결 (FHKST01010200) ───────────────────
     async def get_orderbook(self, symbol: str) -> dict:

@@ -1013,7 +1013,7 @@
               </div>
               <div id="lgbm-saved-models" style="display:flex; flex-direction:column; gap:6px; max-height:420px; overflow-y:auto; padding-right:4px;">
                 <div style="font-size:12px; color:var(--muted); background:var(--surface2); border-radius:8px; padding:10px; text-align:center;">
-                  저장된 모델 목록을 불러오는 중...
+                  새로고침을 누르면 저장된 모델을 불러옵니다
                 </div>
               </div>
             </div>
@@ -1728,7 +1728,6 @@ function showPage(name, btn) {
   document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
   btn.classList.add('active');
-  if (name === 'lgbm') loadSavedLGBMModels();
   if (name === 'intraday-ai') {
     loadIntradayModels();
     loadIntradayRankResult();
@@ -3873,7 +3872,6 @@ setInterval(() => { if (isAuthenticated) loadStrategyStatus(); }, 30000);
 window.addEventListener('DOMContentLoaded', () => {
   checkEnvAuth();
   checkMasterStatus();
-  loadSavedLGBMModels();
   loadStrategyAIModels();
   loadStrategyStatus();
   loadIntradayTraderStatus();
@@ -4116,7 +4114,6 @@ setInterval(() => {
 window.addEventListener('DOMContentLoaded', () => {
   checkEnvAuth();
   checkMasterStatus();
-  loadSavedLGBMModels();
   loadStrategyAIModels();
   loadStrategyStatus();
   loadIntradayTraderStatus();
