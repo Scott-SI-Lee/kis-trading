@@ -1,0 +1,737 @@
+{
+  "generated_at_kst": "2026-06-21T07:10:01+09:00",
+  "news_window_hours": 24,
+  "summary": [
+    "미국 주요 지수는 위험선호 우위로 마감했습니다.",
+    "섹터 강세는 SOX(+8.88%)가 주도했습니다.",
+    "섹터 약세는 XLE(-5.87%)가 두드러졌습니다.",
+    "미 10년물 금리는 0.0bp 움직였습니다.",
+    "DXY는 +1.22%로 외국인 수급에 영향을 줄 수 있습니다."
+  ],
+  "news_signal": {
+    "positive_hits": 5.02,
+    "negative_hits": 7.0,
+    "net_score": -1.98,
+    "themes": [
+      {
+        "theme": "금리/달러",
+        "count": 9.08
+      },
+      {
+        "theme": "AI/반도체",
+        "count": 3.37
+      },
+      {
+        "theme": "에너지",
+        "count": 2.04
+      },
+      {
+        "theme": "지정학/관세",
+        "count": 0.57
+      }
+    ],
+    "deduped_news_count": 30
+  },
+  "data_quality": {
+    "market_success_count": 22,
+    "market_total_count": 22,
+    "market_success_rate": 1.0,
+    "failed_market_symbols": [],
+    "news_count": 30,
+    "news_source_count": 2,
+    "active_news_source_count": 4,
+    "news_by_source": {
+      "CNBC": 8,
+      "Bloomberg": 22
+    }
+  },
+  "market_data": [
+    {
+      "key": "sp500",
+      "label": "S&P500",
+      "symbol": "^GSPC",
+      "group": "major_index",
+      "price": 7500.58,
+      "prev_close": 7394.3,
+      "change_pct": 1.437,
+      "fetched_at": "2026-06-20T22:10:00.389439+00:00",
+      "error": null,
+      "change_bp": null
+    },
+    {
+      "key": "nasdaq",
+      "label": "Nasdaq",
+      "symbol": "^IXIC",
+      "group": "major_index",
+      "price": 26517.932,
+      "prev_close": 25809.66,
+      "change_pct": 2.744,
+      "fetched_at": "2026-06-20T22:10:00.465633+00:00",
+      "error": null,
+      "change_bp": null
+    },
+    {
+      "key": "dow",
+      "label": "Dow Jones",
+      "symbol": "^DJI",
+      "group": "major_index",
+      "price": 51564.7,
+      "prev_close": 50848.75,
+      "change_pct": 1.408,
+      "fetched_at": "2026-06-20T22:10:00.394071+00:00",
+      "error": null,
+      "change_bp": null
+    },
+    {
+      "key": "russell2000",
+      "label": "Russell2000",
+      "symbol": "^RUT",
+      "group": "major_index",
+      "price": 2979.765,
+      "prev_close": 2921.03,
+      "change_pct": 2.011,
+      "fetched_at": "2026-06-20T22:10:00.389281+00:00",
+      "error": null,
+      "change_bp": null
+    },
+    {
+      "key": "sox",
+      "label": "SOX",
+      "symbol": "^SOX",
+      "group": "sector",
+      "price": 14341.783,
+      "prev_close": 13171.44,
+      "change_pct": 8.885,
+      "fetched_at": "2026-06-20T22:10:00.404985+00:00",
+      "error": null,
+      "change_bp": null
+    },
+    {
+      "key": "xlk",
+      "label": "XLK",
+      "symbol": "XLK",
+      "group": "sector",
+      "price": 191.44,
+      "prev_close": 183.21,
+      "change_pct": 4.492,
+      "fetched_at": "2026-06-20T22:10:00.419701+00:00",
+      "error": null,
+      "change_bp": null
+    },
+    {
+      "key": "xle",
+      "label": "XLE",
+      "symbol": "XLE",
+      "group": "sector",
+      "price": 53.77,
+      "prev_close": 57.12,
+      "change_pct": -5.865,
+      "fetched_at": "2026-06-20T22:10:00.477800+00:00",
+      "error": null,
+      "change_bp": null
+    },
+    {
+      "key": "xlf",
+      "label": "XLF",
+      "symbol": "XLF",
+      "group": "sector",
+      "price": 53.57,
+      "prev_close": 52.62,
+      "change_pct": 1.805,
+      "fetched_at": "2026-06-20T22:10:00.538563+00:00",
+      "error": null,
+      "change_bp": null
+    },
+    {
+      "key": "xlv",
+      "label": "XLV",
+      "symbol": "XLV",
+      "group": "sector",
+      "price": 149.4,
+      "prev_close": 154.09,
+      "change_pct": -3.044,
+      "fetched_at": "2026-06-20T22:10:00.488524+00:00",
+      "error": null,
+      "change_bp": null
+    },
+    {
+      "key": "nvidia",
+      "label": "Nvidia",
+      "symbol": "NVDA",
+      "group": "us_stock",
+      "price": 210.69,
+      "prev_close": 204.87,
+      "change_pct": 2.841,
+      "fetched_at": "2026-06-20T22:10:00.388509+00:00",
+      "error": null,
+      "change_bp": null
+    },
+    {
+      "key": "amd",
+      "label": "AMD",
+      "symbol": "AMD",
+      "group": "us_stock",
+      "price": 537.37,
+      "prev_close": 488.45,
+      "change_pct": 10.015,
+      "fetched_at": "2026-06-20T22:10:00.461215+00:00",
+      "error": null,
+      "change_bp": null
+    },
+    {
+      "key": "tsmc",
+      "label": "TSMC",
+      "symbol": "TSM",
+      "group": "us_stock",
+      "price": 462.12,
+      "prev_close": 421.07,
+      "change_pct": 9.749,
+      "fetched_at": "2026-06-20T22:10:00.477445+00:00",
+      "error": null,
+      "change_bp": null
+    },
+    {
+      "key": "microsoft",
+      "label": "Microsoft",
+      "symbol": "MSFT",
+      "group": "us_stock",
+      "price": 379.4,
+      "prev_close": 390.34,
+      "change_pct": -2.803,
+      "fetched_at": "2026-06-20T22:10:00.483456+00:00",
+      "error": null,
+      "change_bp": null
+    },
+    {
+      "key": "apple",
+      "label": "Apple",
+      "symbol": "AAPL",
+      "group": "us_stock",
+      "price": 298.01,
+      "prev_close": 295.63,
+      "change_pct": 0.805,
+      "fetched_at": "2026-06-20T22:10:00.530054+00:00",
+      "error": null,
+      "change_bp": null
+    },
+    {
+      "key": "tesla",
+      "label": "Tesla",
+      "symbol": "TSLA",
+      "group": "us_stock",
+      "price": 400.49,
+      "prev_close": 399.15,
+      "change_pct": 0.336,
+      "fetched_at": "2026-06-20T22:10:00.453880+00:00",
+      "error": null,
+      "change_bp": null
+    },
+    {
+      "key": "amazon",
+      "label": "Amazon",
+      "symbol": "AMZN",
+      "group": "us_stock",
+      "price": 244.39,
+      "prev_close": 241.51,
+      "change_pct": 1.192,
+      "fetched_at": "2026-06-20T22:10:00.469773+00:00",
+      "error": null,
+      "change_bp": null
+    },
+    {
+      "key": "meta",
+      "label": "Meta",
+      "symbol": "META",
+      "group": "us_stock",
+      "price": 577.22,
+      "prev_close": 568.43,
+      "change_pct": 1.546,
+      "fetched_at": "2026-06-20T22:10:00.470523+00:00",
+      "error": null,
+      "change_bp": null
+    },
+    {
+      "key": "us10y",
+      "label": "미국채 10년물 금리",
+      "symbol": "^TNX",
+      "group": "macro",
+      "price": 4.451,
+      "prev_close": 4.451,
+      "change_pct": 0.0,
+      "fetched_at": "2026-06-20T22:10:00.397560+00:00",
+      "error": null,
+      "change_bp": 0.0
+    },
+    {
+      "key": "dxy",
+      "label": "DXY",
+      "symbol": "DX-Y.NYB",
+      "group": "macro",
+      "price": 100.849,
+      "prev_close": 99.63,
+      "change_pct": 1.224,
+      "fetched_at": "2026-06-20T22:10:00.402882+00:00",
+      "error": null,
+      "change_bp": null
+    },
+    {
+      "key": "wti",
+      "label": "WTI",
+      "symbol": "CL=F",
+      "group": "macro",
+      "price": 76.54,
+      "prev_close": 80.75,
+      "change_pct": -5.214,
+      "fetched_at": "2026-06-20T22:10:00.455774+00:00",
+      "error": null,
+      "change_bp": null
+    },
+    {
+      "key": "natural_gas",
+      "label": "천연가스",
+      "symbol": "NG=F",
+      "group": "macro",
+      "price": 3.198,
+      "prev_close": 3.147,
+      "change_pct": 1.621,
+      "fetched_at": "2026-06-20T22:10:00.458710+00:00",
+      "error": null,
+      "change_bp": null
+    },
+    {
+      "key": "gold",
+      "label": "금 가격",
+      "symbol": "GC=F",
+      "group": "macro",
+      "price": 4172.9,
+      "prev_close": 4328.0,
+      "change_pct": -3.584,
+      "fetched_at": "2026-06-20T22:10:00.450758+00:00",
+      "error": null,
+      "change_bp": null
+    }
+  ],
+  "news": [
+    {
+      "source": "CNBC",
+      "title": "Iran reportedly closes Strait of Hormuz again, casting shadow over nuclear talks",
+      "link": "https://www.cnbc.com/2026/06/20/iran-reportedly-closes-strait-of-hormuz-again-raising-doubt-over-talks.html",
+      "published_at": "2026-06-20T22:08:09+00:00",
+      "summary": "Iran's joint military command said the closure was in response to continued Israeli military operations in Lebanon."
+    },
+    {
+      "source": "Bloomberg",
+      "title": "Fed’s Favorite Gauge Is Seen Showing Faster Inflation",
+      "link": "https://www.bloomberg.com/news/articles/2026-06-20/fed-s-favorite-gauge-is-seen-showing-faster-inflation",
+      "published_at": "2026-06-20T20:00:00+00:00",
+      "summary": "The latest update to the Federal Reserve’s favorite inflation gauge is unlikely to challenge a growing consensus at the US central bank around the need for interest-rate hikes this year."
+    },
+    {
+      "source": "CNBC",
+      "title": "'Fun dads' get 5 things right about parenting that many people forget—'they're worth borrowing' this Father's Day, says expert",
+      "link": "https://www.cnbc.com/2026/06/20/fun-dads-get-5-things-right-about-parenting-that-many-people-forget-says-expert.html",
+      "published_at": "2026-06-20T17:35:35+00:00",
+      "summary": "Many parents spend their days managing schedules, chores and responsibilities. This Father's Day, a parenting expert shares five \"fun dad\" habits that can increase joy and strengthen parent-child relationships."
+    },
+    {
+      "source": "Bloomberg",
+      "title": "Brazil’s Lula Holds Lead Against Bolsonaro After Bank Scandal",
+      "link": "https://www.bloomberg.com/news/articles/2026-06-20/brazil-lula-maintains-lead-against-bolsonaro-after-bank-scandal",
+      "published_at": "2026-06-20T16:30:41+00:00",
+      "summary": "President Luiz Inacio Lula da Silva maintained his lead in polls on the Brazilian presidential election against Senator Flavio Bolsonaro, who is weighed down by his ties to a former banker involved in the country’s biggest bank fraud scandal."
+    },
+    {
+      "source": "Bloomberg",
+      "title": "Pointed News Quiz | Bonds, Streaming, Yogurt",
+      "link": "https://www.bloomberg.com/news/videos/2026-06-20/pointed-news-quiz-bonds-streaming-yogurt-video",
+      "published_at": "2026-06-20T16:17:09+00:00",
+      "summary": "David Gura, Christina Ruffini, and Lisa Mateo of “Bloomberg This Weekend” play Pointed! Wager your points, leverage your bets and answer wisely. A new quiz is available to play each week on Bloomberg.com (Source: Bloomberg)"
+    },
+    {
+      "source": "Bloomberg",
+      "title": "History Repeating Itself in America",
+      "link": "https://www.bloomberg.com/news/videos/2026-06-20/history-repeating-itself-in-america-video",
+      "published_at": "2026-06-20T16:12:21+00:00",
+      "summary": "As the nation prepares to celebrate its 250th anniversary, we can look back and see the recurring themes and lessons in American history. Host of the podcast History That Doesn't Suck and professor at Utah Valley University's Center for Constitutional Studies Greg Jackson joins Bloomberg This Weekend to discuss his new book Been There, Done That, How Our History Shows What We Can Overcome with hosts David Gura and Christina Ruffini, which explores these moments in history. (Source: Bloomberg)"
+    },
+    {
+      "source": "Bloomberg",
+      "title": "Iran Sanctions Losing Efficacy",
+      "link": "https://www.bloomberg.com/news/videos/2026-06-20/iran-sanctions-losing-efficacy-video",
+      "published_at": "2026-06-20T15:50:04+00:00",
+      "summary": "In 2015, sanctions played a key role in bringing Iran to the negotiating table but now warfare has been the primary tool. Oliver Wyman Partner and Global Anti-Financial Crime Practice Leader Daniel Tannebaum explains to David Gura and Christina Ruffini on Bloomberg This Weekend how even if sanctions on Iran are lifted, businesses may remain hesitant to reengage with Iran due to lingering risks. (Source: Bloomberg)"
+    },
+    {
+      "source": "Bloomberg",
+      "title": "Rep. Warnock: Wall Street vs Main Street",
+      "link": "https://www.bloomberg.com/news/videos/2026-06-20/rep-warnock-wall-street-vs-main-street-video",
+      "published_at": "2026-06-20T15:26:45+00:00",
+      "summary": "Senator Raphael Warnock (D-GA) tells David Gura on Bloomberg This Weekend that the focus of the country should be on how local Main Streets are doing, not on well Wall Street is doing. Watch part one of Senator Warnock's interview now and tune in to Bloomberg This Weekend tomorrow for part two. (Source: Bloomberg)"
+    },
+    {
+      "source": "Bloomberg",
+      "title": "Netanyahu Faces MOU Blow",
+      "link": "https://www.bloomberg.com/news/videos/2026-06-20/netanyahu-faces-mou-blow-video",
+      "published_at": "2026-06-20T15:09:42+00:00",
+      "summary": "While the United States and Iran have a new Memorandum of Understanding (MOU), Israel has been sidelined from the talks. Bloomberg News' Jerusalem reporter Dan Williams explains the embarrassing situation for Prime Minister Netanyahu to David Gura and Christina Ruffini on Bloomberg This Weekend. (Source: Bloomberg)"
+    },
+    {
+      "source": "CNBC",
+      "title": "The budget airline model in the U.S. is running out of runway",
+      "link": "https://www.cnbc.com/2026/06/20/cheap-airline-fares-summer-travel.html",
+      "published_at": "2026-06-20T15:05:02+00:00",
+      "summary": "Spirit's bankruptcy as United and Delta fly high suggests there's more to success in airline industry than low fares, and failure isn't about jet fuel spikes."
+    },
+    {
+      "source": "CNBC",
+      "title": "Bitcoin's future as revolutionary as the smartphone, according to CoinDesk",
+      "link": "https://www.cnbc.com/2026/06/20/bitcoin-as-revolutionary-as-smartphone-according-to-coindesk.html",
+      "published_at": "2026-06-20T15:00:01+00:00",
+      "summary": "CoinDesk’s president of indices and data has a message for investors: Don’t count out bitcoin."
+    },
+    {
+      "source": "Bloomberg",
+      "title": "South Africa’s Kganyago Warns Inflation Expectations Are Rising",
+      "link": "https://www.bloomberg.com/news/articles/2026-06-20/south-africa-central-bank-warns-it-must-act-on-rising-price-expectations",
+      "published_at": "2026-06-20T14:50:07+00:00",
+      "summary": "South Africa’s central bank governor said policymakers are seeing early signs of second-round inflation effects as underlying price pressures build, emphasizing the need to act."
+    },
+    {
+      "source": "Bloomberg",
+      "title": "Lawrence, Kansas Embraces Algerian World Cup Team",
+      "link": "https://www.bloomberg.com/news/videos/2026-06-20/lawrence-kansas-embraces-algerian-world-cup-team-video",
+      "published_at": "2026-06-20T14:45:37+00:00",
+      "summary": "The Algerian national soccer team was assigned to Lawrence, Kansas for training and practice during the World Cup and have been met with an enthusiastic reception from local residents. Mayor of Lawrence Brad Finkeldei shares with David Gura and Christina Ruffini on Bloomberg This Weekend the joys of this grassroots cultural exchange and how it strengthens international goodwill. (Source: Bloomberg)"
+    },
+    {
+      "source": "Bloomberg",
+      "title": "The Reindustrialize Summit: 'Build, Baby, Build'",
+      "link": "https://www.bloomberg.com/news/videos/2026-06-20/the-reindustrialize-summit-build-baby-build-video",
+      "published_at": "2026-06-20T14:39:32+00:00",
+      "summary": "At the Reindustrialize Summit in Detroit, industrial leaders, White House officials, and major investors convened to emphasize the critical role of manufacturing in reinforcing national and military strength. Axios Defense reporter Colin Demarest joins David Gura and Christina Ruffini on Bloomberg This Weekend to discuss the messaging at the summit. (Source: Bloomberg)"
+    },
+    {
+      "source": "Bloomberg",
+      "title": "MOU Gives US and Iran Breathing Room",
+      "link": "https://www.bloomberg.com/news/videos/2026-06-20/mou-gives-us-and-iran-breathing-room-video",
+      "published_at": "2026-06-20T14:07:22+00:00",
+      "summary": "Georgetown University School of Foreign Service Adjunct Professor Ali Vaez joins David Gura and Christina Ruffini on Bloomberg This Weekend and explains his cautious optimism for the recent Memorandum of Understanding (MOU) involving the US, Israel, and Iran. While Vaez acknowledges a deal within the 60 day timeframe is unlikely, the MOU allows for that timeframe to be extended and should be viewed as a starting place. (Source: Bloomberg)"
+    },
+    {
+      "source": "Bloomberg",
+      "title": "SpaceX IPO Sparks Anticipation for OpenAI and Anthropic",
+      "link": "https://www.bloomberg.com/news/videos/2026-06-20/spacex-ipo-sparks-anticipation-for-openai-and-anthropic-video",
+      "published_at": "2026-06-20T13:36:49+00:00",
+      "summary": "The capital influx from the SpaceX IPO, which ended its first week of trading up 37% from its IPO price, highlights strong investor enthusiasm. Bloomberg Radio host of \"Masters in Business\" Barry Ritholtz comes on Bloomberg This Weekend to discuss the potential impact of this enthusiasm on the upcoming IPOs of OpenAI and Anthropic, expected to go public in the near future. (Source: Bloomberg)"
+    },
+    {
+      "source": "Bloomberg",
+      "title": "Trump Seeks Iran Offramp",
+      "link": "https://www.bloomberg.com/news/videos/2026-06-20/trump-seeks-iran-offramp-video",
+      "published_at": "2026-06-20T12:33:08+00:00",
+      "summary": "President and Founder of Eurasia Group and GZERO Media Ian Bremmer joins David Gura and Christina Ruffini on Bloomberg This Weekend to discuss how in the face of the United States failing to achieve any of the war goals given at the beginning of the conflict, President Trump is looking to put Iran behind him. (Source: Bloomberg)"
+    },
+    {
+      "source": "Bloomberg",
+      "title": "US-Iran Delegations Expected in Switzerland",
+      "link": "https://www.bloomberg.com/news/videos/2026-06-20/us-iran-delegations-expected-in-switzerland-video",
+      "published_at": "2026-06-20T12:20:07+00:00",
+      "summary": "Three days after President Trump signed an agreement with Iran, Switzerland is playing host for diplomatic talks with the United States, Iran, Pakistan, and Qatar in attendance. The Associated Press's International Correspondent Philip Crowther joins Bloomberg This Weekend with hosts David Gura and Christina Ruffini to discuss who may be attending this summit and what a recent strikes in Lebanon could mean for any deal. (Source: Bloomberg)"
+    },
+    {
+      "source": "Bloomberg",
+      "title": "Iraq Tells Oil Fields to Start Lifting Output After US-Iran Deal",
+      "link": "https://www.bloomberg.com/news/articles/2026-06-20/iraq-tells-oil-fields-to-start-lifting-output-after-us-iran-deal",
+      "published_at": "2026-06-20T12:05:15+00:00",
+      "summary": "Iraq asked operators of five major oil fields to boost production to prewar levels, targeting output of over 3 million barrels a day, after US-Iran deal that aims to fully reopen the Strait of Hormuz."
+    },
+    {
+      "source": "CNBC",
+      "title": "AI buildout gives tech investors new reasons to watch bond market",
+      "link": "https://www.cnbc.com/2026/06/20/ai-buildout-giving-tech-investors-new-reasons-to-watch-bond-market.html",
+      "published_at": "2026-06-20T12:00:01+00:00",
+      "summary": "Tech giants are depleting cash reserves and raising debt in their ambitious data center buildouts, a dynamic that's forcing investors to watch interest rates."
+    },
+    {
+      "source": "CNBC",
+      "title": "SNAP restrictions could change what shoppers buy — and food giants are watching",
+      "link": "https://www.cnbc.com/2026/06/20/maha-snap-restrictions-junk-food-spending.html",
+      "published_at": "2026-06-20T12:00:01+00:00",
+      "summary": "SNAP food restrictions are spreading to more states, pressuring major food and beverage as consumers shift spending away from soda, candy and processed foods."
+    },
+    {
+      "source": "CNBC",
+      "title": "Massive bonuses for South Korea's chip workers puts central bank on inflation alert",
+      "link": "https://www.cnbc.com/2026/06/20/south-korea-tech-samsung-sk-hynix-bonus-bank-of-korea.html",
+      "published_at": "2026-06-20T08:59:40+00:00",
+      "summary": "Workers from tech industries receive bonus worth millions of won, prompting the Bank of Korea to warn of the upward pressure to inflation."
+    },
+    {
+      "source": "Bloomberg",
+      "title": "How Substack Creators Are Covering This Strange Markets Era",
+      "link": "https://www.bloomberg.com/news/articles/2026-06-20/how-substack-creators-are-covering-this-strange-markets-era",
+      "published_at": "2026-06-20T08:00:15+00:00",
+      "summary": "A panel with James van Geelen, Sam Ro, and Jasmine Sun."
+    },
+    {
+      "source": "Bloomberg",
+      "title": "Odd Lots: How Substack Creators Are Thinking About AI (Podcast)",
+      "link": "https://www.bloomberg.com/news/audio/2026-06-20/odd-lots-how-substack-creators-are-thinking-about-ai-podcast",
+      "published_at": "2026-06-20T08:00:00+00:00",
+      "summary": "We closed out our New York live show on May 28 with a panel that featured three of our favorite Substackers: James van Geelen of Citrini Research, Sam Ro, founder of The TKer, and journalist Jasmine Sun. They’ve all been Odd Lots guests before, and we wanted to get them together to discuss how journalists and analysts are supposed to cover this incredibly strange and highly pressurized moment in markets. Not only has AI basically infected every corner of the world, the media included, but there’"
+    },
+    {
+      "source": "Bloomberg",
+      "title": "Europe’s Stocks Are Back in the Lead as Stagflation Risks Ease",
+      "link": "https://www.bloomberg.com/news/articles/2026-06-20/europe-s-stocks-are-back-in-the-lead-as-stagflation-risks-ease",
+      "published_at": "2026-06-20T07:00:00+00:00",
+      "summary": "The prospect of peace in the Middle East is setting up European stocks for a standout second half, as investors bet on stronger economic growth and easing inflation."
+    },
+    {
+      "source": "Bloomberg",
+      "title": "Burnham May Yet Rewrite UK Fiscal Playbook If He Becomes PM",
+      "link": "https://www.bloomberg.com/news/articles/2026-06-20/burnham-may-yet-rewrite-uk-fiscal-rules-if-he-becomes-premier",
+      "published_at": "2026-06-20T06:00:00+00:00",
+      "summary": "After Andy Burnham took a giant leap toward becoming the UK’s next leader, focus is turning to how the team he’s assembling could shape the country’s economic policies."
+    },
+    {
+      "source": "Bloomberg",
+      "title": "Germany’s Weirdest Debt Market May No Longer Be Safe Haven for Lenders",
+      "link": "https://www.bloomberg.com/news/articles/2026-06-20/germany-s-weirdest-debt-market-may-no-longer-be-safe-haven-for-lenders",
+      "published_at": "2026-06-20T05:00:15+00:00",
+      "summary": "After storied Austrian motorcycle manufacturer KTM AG presented an insolvency plan to creditors last year, several of them convened a video conference to discuss a counter-proposal. More than 100 parties joined, but none of the usual big corporate lenders were involved. Instead, the group featured a motley crew of backers from tiny German towns, Chinese banks and European pension funds, all with wildly varying knowledge of the case at hand. The call was raucous, according to people briefed on th"
+    },
+    {
+      "source": "Bloomberg",
+      "title": "Ships Told They Can Use South Hormuz Route With Signals On",
+      "link": "https://www.bloomberg.com/news/articles/2026-06-20/ships-can-use-hormuz-southern-route-with-signals-on-jmic-says",
+      "published_at": "2026-06-20T04:26:19+00:00",
+      "summary": "Ships can consider transiting the Strait of Hormuz along the southern route at any time of day with their signals on, a key naval information group said, as energy traders and shipowners look for clues about how quickly and safely Hormuz traffic can return to normal."
+    },
+    {
+      "source": "Bloomberg",
+      "title": "Deadly H5 Bird Flu Spreads Worldwide With Australia Outbreak",
+      "link": "https://www.bloomberg.com/news/articles/2026-06-20/australia-detects-h5-bird-flu-as-virus-reaches-every-continent",
+      "published_at": "2026-06-20T01:15:35+00:00",
+      "summary": "Australia reported its first mainland case of H5 bird flu, marking the spread of the deadly virus to every continent on the planet."
+    },
+    {
+      "source": "CNBC",
+      "title": "DOJ rebuffs judge's request to put in writing it won't move forward with 'anti-weaponization' fund",
+      "link": "https://www.cnbc.com/2026/06/19/doj-anti-weaponization-fund-trump.html",
+      "published_at": "2026-06-19T22:53:09+00:00",
+      "summary": "The DOJ in May announced it was creating the fund as part of a settlement of President Donald Trump's $10 billion lawsuit against the Internal Revenue Service."
+    }
+  ],
+  "recommendations": {
+    "up": [
+      {
+        "symbol": "403870",
+        "name": "HPSP",
+        "direction": "up",
+        "score": 3.84,
+        "reasons": [
+          "SOX +8.88%",
+          "TSMC +9.75%",
+          "AMD +10.02%",
+          "AI/반도체 뉴스 빈도 증가"
+        ],
+        "risks": []
+      },
+      {
+        "symbol": "005930",
+        "name": "삼성전자",
+        "direction": "up",
+        "score": 3.48,
+        "reasons": [
+          "SOX +8.88%",
+          "XLK +4.49%",
+          "Nvidia +2.84%",
+          "AMD +10.02%"
+        ],
+        "risks": []
+      },
+      {
+        "symbol": "000660",
+        "name": "SK하이닉스",
+        "direction": "up",
+        "score": 3.37,
+        "reasons": [
+          "SOX +8.88%",
+          "Nvidia +2.84%",
+          "AMD +10.02%",
+          "TSMC +9.75%"
+        ],
+        "risks": []
+      },
+      {
+        "symbol": "042700",
+        "name": "한미반도체",
+        "direction": "up",
+        "score": 3.32,
+        "reasons": [
+          "SOX +8.88%",
+          "Nvidia +2.84%",
+          "AMD +10.02%",
+          "AI/반도체 뉴스 빈도 증가"
+        ],
+        "risks": []
+      },
+      {
+        "symbol": "035720",
+        "name": "카카오",
+        "direction": "up",
+        "score": 2.2,
+        "reasons": [
+          "Nasdaq +2.74%",
+          "XLK +4.49%",
+          "Meta +1.55%"
+        ],
+        "risks": [
+          "달러 강세는 외국인 수급 부담"
+        ]
+      },
+      {
+        "symbol": "035420",
+        "name": "NAVER",
+        "direction": "up",
+        "score": 1.95,
+        "reasons": [
+          "Nasdaq +2.74%",
+          "XLK +4.49%",
+          "Meta +1.55%",
+          "Amazon +1.19%"
+        ],
+        "risks": [
+          "달러 강세는 외국인 수급 부담"
+        ]
+      },
+      {
+        "symbol": "012450",
+        "name": "한화에어로스페이스",
+        "direction": "up",
+        "score": 1.5,
+        "reasons": [
+          "Dow Jones +1.41%",
+          "Russell2000 +2.01%",
+          "Nasdaq +2.74%"
+        ],
+        "risks": []
+      },
+      {
+        "symbol": "006400",
+        "name": "삼성SDI",
+        "direction": "up",
+        "score": 0.74,
+        "reasons": [
+          "Nasdaq +2.74%"
+        ],
+        "risks": [
+          "달러 강세는 외국인 수급 부담"
+        ]
+      }
+    ],
+    "down": [
+      {
+        "symbol": "010950",
+        "name": "S-Oil",
+        "direction": "down",
+        "score": -8.56,
+        "reasons": [
+          "XLE -5.87%",
+          "WTI -5.21%"
+        ],
+        "risks": [
+          "유가 약세는 정유/에너지 투자심리 부담"
+        ]
+      },
+      {
+        "symbol": "096770",
+        "name": "SK이노베이션",
+        "direction": "down",
+        "score": -7.11,
+        "reasons": [
+          "XLE -5.87%",
+          "WTI -5.21%"
+        ],
+        "risks": [
+          "유가 약세는 정유/에너지 투자심리 부담"
+        ]
+      },
+      {
+        "symbol": "010130",
+        "name": "고려아연",
+        "direction": "down",
+        "score": -4.35,
+        "reasons": [
+          "금 가격 -3.58%",
+          "WTI -5.21%"
+        ],
+        "risks": []
+      },
+      {
+        "symbol": "006260",
+        "name": "LS",
+        "direction": "down",
+        "score": -2.76,
+        "reasons": [
+          "Dow Jones +1.41%",
+          "XLE -5.87%",
+          "WTI -5.21%"
+        ],
+        "risks": []
+      },
+      {
+        "symbol": "051910",
+        "name": "LG화학",
+        "direction": "down",
+        "score": -2.39,
+        "reasons": [
+          "WTI -5.21%"
+        ],
+        "risks": []
+      },
+      {
+        "symbol": "010140",
+        "name": "삼성중공업",
+        "direction": "down",
+        "score": -1.85,
+        "reasons": [
+          "Dow Jones +1.41%",
+          "WTI -5.21%"
+        ],
+        "risks": []
+      },
+      {
+        "symbol": "033780",
+        "name": "KT&G",
+        "direction": "down",
+        "score": -1.38,
+        "reasons": [
+          "Dow Jones +1.41%",
+          "XLV -3.04%"
+        ],
+        "risks": []
+      },
+      {
+        "symbol": "207940",
+        "name": "삼성바이오로직스",
+        "direction": "down",
+        "score": -0.88,
+        "reasons": [
+          "XLV -3.04%",
+          "Dow Jones +1.41%",
+          "방어주 성격으로 하락장 상대 강도 기대"
+        ],
+        "risks": []
+      }
+    ]
+  },
+  "markdown": "# 미국 마감 후 한국 증시 영향 브리프\n\n- 생성시각: 2026-06-21T07:10:01+09:00\n- 뉴스 기준: 최근 24시간\n\n## 핵심 요약\n- 미국 주요 지수는 위험선호 우위로 마감했습니다.\n- 섹터 강세는 SOX(+8.88%)가 주도했습니다.\n- 섹터 약세는 XLE(-5.87%)가 두드러졌습니다.\n- 미 10년물 금리는 0.0bp 움직였습니다.\n- DXY는 +1.22%로 외국인 수급에 영향을 줄 수 있습니다.\n\n## 데이터 품질\n- 시장 데이터: 22/22 성공\n- 뉴스: 30건 / 2개 소스\n\n## 상승 가능 후보\n- HPSP(403870) score 3.84: SOX +8.88%; TSMC +9.75%; AMD +10.02%; AI/반도체 뉴스 빈도 증가\n- 삼성전자(005930) score 3.48: SOX +8.88%; XLK +4.49%; Nvidia +2.84%; AMD +10.02%\n- SK하이닉스(000660) score 3.37: SOX +8.88%; Nvidia +2.84%; AMD +10.02%; TSMC +9.75%\n- 한미반도체(042700) score 3.32: SOX +8.88%; Nvidia +2.84%; AMD +10.02%; AI/반도체 뉴스 빈도 증가\n- 카카오(035720) score 2.2: Nasdaq +2.74%; XLK +4.49%; Meta +1.55% / 리스크: 달러 강세는 외국인 수급 부담\n- NAVER(035420) score 1.95: Nasdaq +2.74%; XLK +4.49%; Meta +1.55%; Amazon +1.19% / 리스크: 달러 강세는 외국인 수급 부담\n- 한화에어로스페이스(012450) score 1.5: Dow Jones +1.41%; Russell2000 +2.01%; Nasdaq +2.74%\n- 삼성SDI(006400) score 0.74: Nasdaq +2.74% / 리스크: 달러 강세는 외국인 수급 부담\n\n## 하락 위험 후보\n- S-Oil(010950) score -8.56: XLE -5.87%; WTI -5.21% / 체크: 유가 약세는 정유/에너지 투자심리 부담\n- SK이노베이션(096770) score -7.11: XLE -5.87%; WTI -5.21% / 체크: 유가 약세는 정유/에너지 투자심리 부담\n- 고려아연(010130) score -4.35: 금 가격 -3.58%; WTI -5.21%\n- LS(006260) score -2.76: Dow Jones +1.41%; XLE -5.87%; WTI -5.21%\n- LG화학(051910) score -2.39: WTI -5.21%\n- 삼성중공업(010140) score -1.85: Dow Jones +1.41%; WTI -5.21%\n- KT&G(033780) score -1.38: Dow Jones +1.41%; XLV -3.04%\n- 삼성바이오로직스(207940) score -0.88: XLV -3.04%; Dow Jones +1.41%; 방어주 성격으로 하락장 상대 강도 기대\n\n## 주요 데이터\n- S&P500: +1.44%\n- Nasdaq: +2.74%\n- Dow Jones: +1.41%\n- Russell2000: +2.01%\n- SOX: +8.88%\n- XLK: +4.49%\n- XLE: -5.87%\n- XLF: +1.80%\n- XLV: -3.04%\n- Nvidia: +2.84%\n- AMD: +10.02%\n- TSMC: +9.75%\n- Microsoft: -2.80%\n- Apple: +0.81%\n- Tesla: +0.34%\n- Amazon: +1.19%\n- Meta: +1.55%\n- 미국채 10년물 금리: 0.0bp\n- DXY: +1.22%\n- WTI: -5.21%\n- 천연가스: +1.62%\n- 금 가격: -3.58%\n\n## 최근 뉴스\n- [CNBC] Iran reportedly closes Strait of Hormuz again, casting shadow over nuclear talks (2026-06-20T22:08:09+00:00)\n- [Bloomberg] Fed’s Favorite Gauge Is Seen Showing Faster Inflation (2026-06-20T20:00:00+00:00)\n- [CNBC] 'Fun dads' get 5 things right about parenting that many people forget—'they're worth borrowing' this Father's Day, says expert (2026-06-20T17:35:35+00:00)\n- [Bloomberg] Brazil’s Lula Holds Lead Against Bolsonaro After Bank Scandal (2026-06-20T16:30:41+00:00)\n- [Bloomberg] Pointed News Quiz | Bonds, Streaming, Yogurt (2026-06-20T16:17:09+00:00)\n- [Bloomberg] History Repeating Itself in America (2026-06-20T16:12:21+00:00)\n- [Bloomberg] Iran Sanctions Losing Efficacy (2026-06-20T15:50:04+00:00)\n- [Bloomberg] Rep. Warnock: Wall Street vs Main Street (2026-06-20T15:26:45+00:00)\n- [Bloomberg] Netanyahu Faces MOU Blow (2026-06-20T15:09:42+00:00)\n- [CNBC] The budget airline model in the U.S. is running out of runway (2026-06-20T15:05:02+00:00)",
+  "saved_to": {
+    "latest_json": "./reports/latest.json",
+    "latest_md": "./reports/latest.md",
+    "history_json": "./reports/us-close-20260621-071001.json",
+    "history_md": "./reports/us-close-20260621-071001.md"
+  }
+}

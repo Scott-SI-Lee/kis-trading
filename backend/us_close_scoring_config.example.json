@@ -1,0 +1,25 @@
+{
+  "scoring": {
+    "score_min": -4.0,
+    "score_max": 4.0,
+    "yield_risk_threshold_bp": 6.0,
+    "yield_spike_threshold_bp": 12.0,
+    "risk_penalty_yield_increase": -0.5,
+    "risk_penalty_dxy_increase": -0.4,
+    "risk_penalty_negative_news": 0.08,
+    "boost_positive_news": 0.06,
+    "growth_bond_weight": 0.25,
+    "financial_bond_weight": 0.25,
+    "energy_weight": 0.8,
+    "healthcare_boost": 0.5,
+    "nasdaq_crash_threshold": -1.0,
+    "dxy_risk_threshold": 0.4,
+    "wti_weakness_threshold": -1.0,
+    "major_index_threshold": 0.4,
+    "significant_move_threshold": 0.5,
+    "news_score_news_boost": 0.4,
+    "news_title_weight": 2.0,
+    "news_summary_weight": 1.0,
+    "news_recency_half_life_hours": 12.0
+  }
+}

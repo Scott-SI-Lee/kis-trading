@@ -42,6 +42,11 @@ UTC = timezone.utc
 # API 요청 설정
 API_TIMEOUT_SECONDS = 15
 TELEGRAM_TIMEOUT_SECONDS = 20
+YAHOO_MAX_CONCURRENT_REQUESTS = 6
+YAHOO_RETRY_ATTEMPTS = 2
+YAHOO_RETRY_BACKOFF_SECONDS = 0.5
+YAHOO_TRANSIENT_HTTP_STATUSES = {429, 500, 502, 503, 504}
+LOW_CONFIDENCE_MARKET_SUCCESS_RATE = 0.5
 
 # 점수 계산 설정
 SCORE_BOUNDS = (-4.0, 4.0)
@@ -74,6 +79,30 @@ AI_CHIP_THEME = "AI/반도체"
 NEWS_TITLE_WEIGHT = 2.0
 NEWS_SUMMARY_WEIGHT = 1.0
 NEWS_RECENCY_HALF_LIFE_HOURS = 12.0
+
+DEFAULT_SCORING_CONFIG = {
+    "score_min": SCORE_BOUNDS[0],
+    "score_max": SCORE_BOUNDS[1],
+    "yield_risk_threshold_bp": YIELD_RISK_THRESHOLD_BP,
+    "yield_spike_threshold_bp": YIELD_SPIKE_THRESHOLD_BP,
+    "risk_penalty_yield_increase": RISK_PENALTY_YIELD_INCREASE,
+    "risk_penalty_dxy_increase": RISK_PENALTY_DXY_INCREASE,
+    "risk_penalty_negative_news": RISK_PENALTY_NEGATIVE_NEWS,
+    "boost_positive_news": BOOST_POSITIVE_NEWS,
+    "growth_bond_weight": GROWTH_BOND_WEIGHT,
+    "financial_bond_weight": FINANCIAL_BOND_WEIGHT,
+    "energy_weight": ENERGY_WEIGHT,
+    "healthcare_boost": HEALTHCARE_BOOST,
+    "nasdaq_crash_threshold": NASDAQ_CRASH_THRESHOLD,
+    "dxy_risk_threshold": DXY_RISK_THRESHOLD,
+    "wti_weakness_threshold": WTI_WEAKNESS_THRESHOLD,
+    "major_index_threshold": MAJOR_INDEX_THRESHOLD,
+    "significant_move_threshold": SIGNIFICANT_MOVE_THRESHOLD,
+    "news_score_news_boost": NEWS_SCORE_NEWS_BOOST,
+    "news_title_weight": NEWS_TITLE_WEIGHT,
+    "news_summary_weight": NEWS_SUMMARY_WEIGHT,
+    "news_recency_half_life_hours": NEWS_RECENCY_HALF_LIFE_HOURS,
+}
 
 
 @dataclass(frozen=True)
@@ -137,17 +166,46 @@ class AppConfig:
     positive_words: list[str] = field(default_factory=list)
     negative_words: list[str] = field(default_factory=list)
     news_feeds: dict[str, str] = field(default_factory=dict)
+    scoring: dict[str, float] = field(default_factory=dict)
+    source_path: Optional[str] = None
 
     @classmethod
-    def load_default(cls) -> AppConfig:
+    def load_default(cls, config_path: Optional[str] = None) -> AppConfig:
         """기본 설정 로드"""
-        return cls(
+        config = cls(
             instruments=INSTRUMENTS,
             korea_candidates=KOREA_CANDIDATES,
             positive_words=POSITIVE_WORDS,
             negative_words=NEGATIVE_WORDS,
             news_feeds=NEWS_FEEDS,
+            scoring=dict(DEFAULT_SCORING_CONFIG),
         )
+        path = config_path or os.getenv("US_CLOSE_CONFIG_PATH")
+        if path:
+            config.apply_json_file(path)
+        return config
+
+    def apply_json_file(self, path: str) -> None:
+        """JSON 설정 파일로 기본 설정을 덮어쓰기"""
+        with open(path, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+
+        if "scoring" in payload:
+            self.scoring.update(payload["scoring"] or {})
+        if "news_feeds" in payload:
+            self.news_feeds.update(payload["news_feeds"] or {})
+        if "positive_words" in payload:
+            self.positive_words = list(payload["positive_words"] or [])
+        if "negative_words" in payload:
+            self.negative_words = list(payload["negative_words"] or [])
+        if "korea_candidates" in payload:
+            self.korea_candidates = list(payload["korea_candidates"] or [])
+        if "instruments" in payload:
+            self.instruments = [
+                Instrument(**item)
+                for item in payload["instruments"]
+            ]
+        self.source_path = path
 
 
 # ============================================================================
@@ -378,18 +436,42 @@ def _fmt_bp(value: Optional[float]) -> str:
     return f"{sign}{value:.1f}bp"
 
 
-def _score_from_pct(value: Optional[float], scale: float = 1.0) -> float:
+def _scoring_value(scoring: Optional[dict], key: str) -> float:
+    """스코어링 설정값 조회"""
+    source = scoring or DEFAULT_SCORING_CONFIG
+    return float(source.get(key, DEFAULT_SCORING_CONFIG[key]))
+
+
+def _score_bounds(scoring: Optional[dict]) -> tuple[float, float]:
+    """스코어 상하한 조회"""
+    return (
+        _scoring_value(scoring, "score_min"),
+        _scoring_value(scoring, "score_max"),
+    )
+
+
+def _score_from_pct(
+    value: Optional[float],
+    scale: float = 1.0,
+    scoring: Optional[dict] = None,
+) -> float:
     """백분율을 점수로 변환 (범위 제한)"""
     if value is None or not math.isfinite(value):
         return 0.0
-    return max(SCORE_BOUNDS[0], min(SCORE_BOUNDS[1], value * scale))
+    lower, upper = _score_bounds(scoring)
+    return max(lower, min(upper, value * scale))
 
 
-def _score_from_bp(value: Optional[float], scale: float = 1.0) -> float:
+def _score_from_bp(
+    value: Optional[float],
+    scale: float = 1.0,
+    scoring: Optional[dict] = None,
+) -> float:
     """bp 변화를 점수로 변환. 10bp를 1점 단위로 정규화합니다."""
     if value is None or not math.isfinite(value):
         return 0.0
-    return max(SCORE_BOUNDS[0], min(SCORE_BOUNDS[1], (value / 10.0) * scale))
+    lower, upper = _score_bounds(scoring)
+    return max(lower, min(upper, (value / 10.0) * scale))
 
 
 def _get_move_safe(moves: dict[str, MarketMove], key: str) -> Optional[MarketMove]:
@@ -440,11 +522,25 @@ class MarketDataFetchError(Exception):
     pass
 
 
+class TransientMarketDataFetchError(MarketDataFetchError):
+    """재시도 가능한 시장 데이터 수집 에러"""
+    pass
+
+
 class YahooMarketDataClient:
     """Yahoo Finance 마켓 데이터 클라이언트"""
 
-    def __init__(self, session: aiohttp.ClientSession):
+    def __init__(
+        self,
+        session: aiohttp.ClientSession,
+        max_concurrent_requests: int = YAHOO_MAX_CONCURRENT_REQUESTS,
+        retry_attempts: int = YAHOO_RETRY_ATTEMPTS,
+        retry_backoff_seconds: float = YAHOO_RETRY_BACKOFF_SECONDS,
+    ):
         self.session = session
+        self._semaphore = asyncio.Semaphore(max(1, max_concurrent_requests))
+        self._retry_attempts = max(0, retry_attempts)
+        self._retry_backoff_seconds = max(0.0, retry_backoff_seconds)
 
     async def fetch_moves(self, instruments: list[Instrument]) -> list[MarketMove]:
         """여러 악기의 마켓 데이터 동시 수집"""
@@ -454,65 +550,96 @@ class YahooMarketDataClient:
 
     async def fetch_move(self, instrument: Instrument) -> MarketMove:
         """단일 악기의 마켓 데이터 수집"""
+        async with self._semaphore:
+            return await self._fetch_move_with_retries(instrument)
+
+    async def _fetch_move_with_retries(self, instrument: Instrument) -> MarketMove:
+        """재시도 가능한 실패에 대해 지수 백오프로 마켓 데이터 수집"""
+        for attempt in range(self._retry_attempts + 1):
+            try:
+                return await self._fetch_move_once(instrument)
+            except asyncio.TimeoutError:
+                message = "timeout"
+                retryable = True
+            except TransientMarketDataFetchError as exc:
+                message = str(exc)
+                retryable = True
+            except Exception as exc:
+                logger.warning("Failed to fetch %s: %s", instrument.symbol, type(exc).__name__)
+                return self._error(instrument, str(exc))
+
+            if not retryable or attempt >= self._retry_attempts:
+                logger.warning("Yahoo fetch failed for %s after retries: %s", instrument.symbol, message)
+                return self._error(instrument, message)
+
+            delay = self._retry_backoff_seconds * (2 ** attempt)
+            logger.warning(
+                "Transient Yahoo fetch error for %s (%s); retrying in %.1fs",
+                instrument.symbol,
+                message,
+                delay,
+            )
+            if delay > 0:
+                await asyncio.sleep(delay)
+
+        return self._error(instrument, "retry exhausted")
+
+    async def _fetch_move_once(self, instrument: Instrument) -> MarketMove:
+        """단일 Yahoo API 요청을 실행하고 응답을 MarketMove로 변환"""
         url = (
             "https://query1.finance.yahoo.com/v8/finance/chart/"
             f"{quote(instrument.symbol, safe='')}?range=5d&interval=1d"
         )
-        try:
-            async with self.session.get(
-                url,
-                timeout=aiohttp.ClientTimeout(total=API_TIMEOUT_SECONDS),
-                headers={
-                    "User-Agent": "Mozilla/5.0 kis-trading/1.0",
-                    "Accept": "application/json,text/plain,*/*",
-                },
-            ) as resp:
-                if resp.status >= 400:
-                    logger.warning("Yahoo API HTTP %d for %s", resp.status, instrument.symbol)
-                    return self._error(instrument, f"HTTP {resp.status}")
-                payload = await resp.json(content_type=None)
+        async with self.session.get(
+            url,
+            timeout=aiohttp.ClientTimeout(total=API_TIMEOUT_SECONDS),
+            headers={
+                "User-Agent": "Mozilla/5.0 kis-trading/1.0",
+                "Accept": "application/json,text/plain,*/*",
+            },
+        ) as resp:
+            if resp.status in YAHOO_TRANSIENT_HTTP_STATUSES:
+                logger.warning("Yahoo API transient HTTP %d for %s", resp.status, instrument.symbol)
+                raise TransientMarketDataFetchError(f"HTTP {resp.status}")
+            if resp.status >= 400:
+                logger.warning("Yahoo API HTTP %d for %s", resp.status, instrument.symbol)
+                return self._error(instrument, f"HTTP {resp.status}")
+            payload = await resp.json(content_type=None)
 
-            result = (payload.get("chart", {}).get("result") or [None])[0]
-            if not result:
-                logger.warning("Empty chart result for %s", instrument.symbol)
-                return self._error(instrument, "empty chart result")
+        result = (payload.get("chart", {}).get("result") or [None])[0]
+        if not result:
+            logger.warning("Empty chart result for %s", instrument.symbol)
+            return self._error(instrument, "empty chart result")
 
-            meta = result.get("meta", {})
-            quote_data = (result.get("indicators", {}).get("quote") or [{}])[0]
-            closes = [v for v in quote_data.get("close", []) if v is not None]
+        meta = result.get("meta", {})
+        quote_data = (result.get("indicators", {}).get("quote") or [{}])[0]
+        closes = [v for v in quote_data.get("close", []) if v is not None]
 
-            price = meta.get("regularMarketPrice") or (closes[-1] if closes else None)
-            prev_close = meta.get("chartPreviousClose")
-            if prev_close is None and len(closes) >= 2:
-                prev_close = closes[-2]
+        price = meta.get("regularMarketPrice") or (closes[-1] if closes else None)
+        prev_close = meta.get("chartPreviousClose")
+        if prev_close is None and len(closes) >= 2:
+            prev_close = closes[-2]
 
-            change_pct = None
-            if price is not None and prev_close:
-                change_pct = round((float(price) / float(prev_close) - 1) * 100, 3)
-            change_bp = (
-                _basis_point_change(price, prev_close)
-                if instrument.key == "us10y"
-                else None
-            )
+        change_pct = None
+        if price is not None and prev_close:
+            change_pct = round((float(price) / float(prev_close) - 1) * 100, 3)
+        change_bp = (
+            _basis_point_change(price, prev_close)
+            if instrument.key == "us10y"
+            else None
+        )
 
-            return MarketMove(
-                key=instrument.key,
-                label=instrument.label,
-                symbol=instrument.symbol,
-                group=instrument.group,
-                price=round(float(price), 4) if price is not None else None,
-                prev_close=round(float(prev_close), 4) if prev_close is not None else None,
-                change_pct=change_pct,
-                fetched_at=datetime.now(UTC).isoformat(),
-                change_bp=change_bp,
-            )
-
-        except asyncio.TimeoutError:
-            logger.warning("Timeout fetching %s", instrument.symbol)
-            return self._error(instrument, "timeout")
-        except Exception as exc:
-            logger.warning("Failed to fetch %s: %s", instrument.symbol, type(exc).__name__)
-            return self._error(instrument, str(exc))
+        return MarketMove(
+            key=instrument.key,
+            label=instrument.label,
+            symbol=instrument.symbol,
+            group=instrument.group,
+            price=round(float(price), 4) if price is not None else None,
+            prev_close=round(float(prev_close), 4) if prev_close is not None else None,
+            change_pct=change_pct,
+            fetched_at=datetime.now(UTC).isoformat(),
+            change_bp=change_bp,
+        )
 
     @staticmethod
     def _error(instrument: Instrument, message: str) -> MarketMove:
@@ -638,14 +765,19 @@ def _keyword_hits(text: str, keyword: str) -> int:
     return len(re.findall(pattern, text.lower()))
 
 
-def _news_recency_weight(published_at: str, now: datetime) -> float:
+def _news_recency_weight(
+    published_at: str,
+    now: datetime,
+    scoring: Optional[dict] = None,
+) -> float:
     """최근 기사에 더 높은 가중치 부여"""
     try:
         published = datetime.fromisoformat(published_at).astimezone(UTC)
     except Exception:
         return 1.0
     age_hours = max(0.0, (now - published).total_seconds() / 3600)
-    return 0.5 ** (age_hours / NEWS_RECENCY_HALF_LIFE_HOURS)
+    half_life = max(0.1, _scoring_value(scoring, "news_recency_half_life_hours"))
+    return 0.5 ** (age_hours / half_life)
 
 
 def _dedupe_news(news: list[NewsItem]) -> list[NewsItem]:
@@ -661,7 +793,12 @@ def _dedupe_news(news: list[NewsItem]) -> list[NewsItem]:
     return deduped
 
 
-def _news_signal(news: list[NewsItem]) -> dict:
+def _news_signal(
+    news: list[NewsItem],
+    scoring: Optional[dict] = None,
+    positive_words: Optional[list[str]] = None,
+    negative_words: Optional[list[str]] = None,
+) -> dict:
     """뉴스에서 신호 추출"""
     now = datetime.now(UTC)
     deduped_news = _dedupe_news(news)
@@ -678,25 +815,27 @@ def _news_signal(news: list[NewsItem]) -> dict:
     }
 
     for item in deduped_news:
-        recency_weight = _news_recency_weight(item.published_at, now)
+        recency_weight = _news_recency_weight(item.published_at, now, scoring)
         title = item.title.lower()
         summary = item.summary.lower()
+        title_weight = _scoring_value(scoring, "news_title_weight")
+        summary_weight = _scoring_value(scoring, "news_summary_weight")
 
         positive += recency_weight * sum(
-            NEWS_TITLE_WEIGHT * _keyword_hits(title, word)
-            + NEWS_SUMMARY_WEIGHT * _keyword_hits(summary, word)
-            for word in POSITIVE_WORDS
+            title_weight * _keyword_hits(title, word)
+            + summary_weight * _keyword_hits(summary, word)
+            for word in (positive_words or POSITIVE_WORDS)
         )
         negative += recency_weight * sum(
-            NEWS_TITLE_WEIGHT * _keyword_hits(title, word)
-            + NEWS_SUMMARY_WEIGHT * _keyword_hits(summary, word)
-            for word in NEGATIVE_WORDS
+            title_weight * _keyword_hits(title, word)
+            + summary_weight * _keyword_hits(summary, word)
+            for word in (negative_words or NEGATIVE_WORDS)
         )
 
         for label, words in theme_keywords.items():
             count = sum(
-                NEWS_TITLE_WEIGHT * _keyword_hits(title, word)
-                + NEWS_SUMMARY_WEIGHT * _keyword_hits(summary, word)
+                title_weight * _keyword_hits(title, word)
+                + summary_weight * _keyword_hits(summary, word)
                 for word in words
             )
             if count:
@@ -720,26 +859,30 @@ def _news_signal(news: list[NewsItem]) -> dict:
     }
 
 
-def _calculate_risk_penalty(moves: dict[str, MarketMove], news_signal: dict) -> float:
+def _calculate_risk_penalty(
+    moves: dict[str, MarketMove],
+    news_signal: dict,
+    scoring: Optional[dict] = None,
+) -> float:
     """리스크 페널티 계산 (개선: 함수 분리)"""
     penalty = 0.0
 
     # 금리 상승: 금리는 % 변화율보다 bp 변화가 리스크 판단에 적합합니다.
     yield_bp = _get_bp_safe(moves, "us10y") or 0
-    if yield_bp > YIELD_RISK_THRESHOLD_BP:
-        penalty += RISK_PENALTY_YIELD_INCREASE
+    if yield_bp > _scoring_value(scoring, "yield_risk_threshold_bp"):
+        penalty += _scoring_value(scoring, "risk_penalty_yield_increase")
 
     # 달러 강세
     dxy_pct = _get_pct_safe(moves, "dxy") or 0
-    if dxy_pct > DXY_RISK_THRESHOLD:
-        penalty += RISK_PENALTY_DXY_INCREASE
+    if dxy_pct > _scoring_value(scoring, "dxy_risk_threshold"):
+        penalty += _scoring_value(scoring, "risk_penalty_dxy_increase")
 
     # 뉴스 신호
     net_score = news_signal["net_score"]
     if net_score < 0:
-        penalty -= min(0.8, abs(net_score) * RISK_PENALTY_NEGATIVE_NEWS)
+        penalty -= min(0.8, abs(net_score) * _scoring_value(scoring, "risk_penalty_negative_news"))
     elif net_score > 0:
-        penalty += min(0.6, net_score * BOOST_POSITIVE_NEWS)
+        penalty += min(0.6, net_score * _scoring_value(scoring, "boost_positive_news"))
 
     return penalty
 
@@ -751,6 +894,7 @@ def _apply_sector_adjustments(
     news_signal: dict,
     reasons: list[str],
     risks: list[str],
+    scoring: Optional[dict] = None,
 ) -> float:
     """섹터별 점수 조정 (개선: 함수 분리)"""
     tags = set(candidate["tags"])
@@ -758,34 +902,34 @@ def _apply_sector_adjustments(
     # 반도체
     if "semiconductor" in tags:
         if any(t["theme"] == AI_CHIP_THEME for t in news_signal["themes"]):
-            score += NEWS_SCORE_NEWS_BOOST
+            score += _scoring_value(scoring, "news_score_news_boost")
             reasons.append("AI/반도체 뉴스 빈도 증가")
 
     # 성장주
     if "growth" in tags:
         yield_bp = _get_bp_safe(moves, "us10y")
-        score -= _score_from_bp(yield_bp, GROWTH_BOND_WEIGHT)
+        score -= _score_from_bp(yield_bp, _scoring_value(scoring, "growth_bond_weight"), scoring)
         dxy_pct = _get_pct_safe(moves, "dxy") or 0
-        if dxy_pct > DXY_RISK_THRESHOLD:
+        if dxy_pct > _scoring_value(scoring, "dxy_risk_threshold"):
             risks.append("달러 강세는 외국인 수급 부담")
 
     # 금융
     if "financial" in tags:
         yield_bp = _get_bp_safe(moves, "us10y")
-        score += _score_from_bp(yield_bp, FINANCIAL_BOND_WEIGHT)
-        if (yield_bp or 0) < -YIELD_RISK_THRESHOLD_BP:
+        score += _score_from_bp(yield_bp, _scoring_value(scoring, "financial_bond_weight"), scoring)
+        if (yield_bp or 0) < -_scoring_value(scoring, "yield_risk_threshold_bp"):
             risks.append("금리 급락 시 은행 순이자마진 기대 약화")
 
     # 에너지
     if "energy" in tags:
         wti_pct = _get_pct_safe(moves, "wti")
-        score += _score_from_pct(wti_pct, ENERGY_WEIGHT)
-        if (wti_pct or 0) < WTI_WEAKNESS_THRESHOLD:
+        score += _score_from_pct(wti_pct, _scoring_value(scoring, "energy_weight"), scoring)
+        if (wti_pct or 0) < _scoring_value(scoring, "wti_weakness_threshold"):
             risks.append("유가 약세는 정유/에너지 투자심리 부담")
 
     # 방어주
     if "healthcare" in tags and score < 0:
-        score += HEALTHCARE_BOOST
+        score += _scoring_value(scoring, "healthcare_boost")
         reasons.append("방어주 성격으로 하락장 상대 강도 기대")
 
     return score
@@ -795,16 +939,17 @@ def _add_universal_risks(
     risks: list[str],
     moves: dict[str, MarketMove],
     candidate: dict,
+    scoring: Optional[dict] = None,
 ) -> None:
     """공통 리스크 추가 (개선: 함수 분리)"""
     tags = set(candidate["tags"])
 
     nasdaq_pct = _get_pct_safe(moves, "nasdaq") or 0
-    if nasdaq_pct < NASDAQ_CRASH_THRESHOLD and "growth" in tags:
+    if nasdaq_pct < _scoring_value(scoring, "nasdaq_crash_threshold") and "growth" in tags:
         risks.append("나스닥 약세 시 성장주 밸류에이션 부담")
 
     yield_bp = _get_bp_safe(moves, "us10y") or 0
-    if yield_bp > YIELD_SPIKE_THRESHOLD_BP:
+    if yield_bp > _scoring_value(scoring, "yield_spike_threshold_bp"):
         risks.append(f"미 10년물 금리 급등({_fmt_bp(yield_bp)})")
 
 
@@ -812,10 +957,11 @@ def _build_recommendations(
     moves: dict[str, MarketMove],
     news_signal: dict,
     candidates: list[dict],
+    scoring: Optional[dict] = None,
 ) -> list[Recommendation]:
     """종목 추천 생성 (개선: 섹터 조정 함수화)"""
     recommendations = []
-    risk_penalty = _calculate_risk_penalty(moves, news_signal)
+    risk_penalty = _calculate_risk_penalty(moves, news_signal, scoring)
 
     for candidate in candidates:
         driver_scores = []
@@ -829,12 +975,12 @@ def _build_recommendations(
                 continue
             pct = move.change_pct
             score_unit = (
-                _score_from_bp(move.change_bp)
+                _score_from_bp(move.change_bp, scoring=scoring)
                 if key == "us10y"
-                else _score_from_pct(pct)
+                else _score_from_pct(pct, scoring=scoring)
             )
             driver_scores.append(score_unit * weight)
-            if abs(pct) >= SIGNIFICANT_MOVE_THRESHOLD:
+            if abs(pct) >= _scoring_value(scoring, "significant_move_threshold"):
                 detail = _fmt_bp(move.change_bp) if key == "us10y" else _fmt_pct(pct)
                 reasons.append(f"{move.label} {detail}")
 
@@ -843,7 +989,7 @@ def _build_recommendations(
 
         # 섹터별 조정
         score = _apply_sector_adjustments(
-            score, candidate, moves, news_signal, reasons, risks
+            score, candidate, moves, news_signal, reasons, risks, scoring
         )
 
         # 기본 이유 추가
@@ -851,7 +997,7 @@ def _build_recommendations(
             reasons.append("미국 마감 데이터와 매크로 신호 종합")
 
         # 공통 리스크 추가
-        _add_universal_risks(risks, moves, candidate)
+        _add_universal_risks(risks, moves, candidate, scoring)
 
         recommendations.append(
             Recommendation(
@@ -868,7 +1014,10 @@ def _build_recommendations(
     return recommendations
 
 
-def _market_summary(moves: dict[str, MarketMove]) -> list[str]:
+def _market_summary(
+    moves: dict[str, MarketMove],
+    scoring: Optional[dict] = None,
+) -> list[str]:
     """시장 요약 생성"""
     bullets = []
     major_keys = ["sp500", "nasdaq", "dow", "russell2000"]
@@ -876,7 +1025,7 @@ def _market_summary(moves: dict[str, MarketMove]) -> list[str]:
 
     # 메이저 지수 평균
     major_avg = sum(
-        _score_from_pct(_get_pct_safe(moves, k)) for k in major_keys
+        _score_from_pct(_get_pct_safe(moves, k), scoring=scoring) for k in major_keys
     ) / len(major_keys)
 
     # 섹터 리더/래거
@@ -888,9 +1037,10 @@ def _market_summary(moves: dict[str, MarketMove]) -> list[str]:
     sector_lagger = min(sector_moves, key=lambda x: x.change_pct, default=None)
 
     # 요약 텍스트
-    if major_avg > MAJOR_INDEX_THRESHOLD:
+    major_index_threshold = _scoring_value(scoring, "major_index_threshold")
+    if major_avg > major_index_threshold:
         bullets.append("미국 주요 지수는 위험선호 우위로 마감했습니다.")
-    elif major_avg < -MAJOR_INDEX_THRESHOLD:
+    elif major_avg < -major_index_threshold:
         bullets.append("미국 주요 지수는 위험회피 우위로 마감했습니다.")
     else:
         bullets.append("미국 주요 지수는 혼조권으로 마감했습니다.")
@@ -930,10 +1080,20 @@ def _data_quality(
         news_by_source[item.source] = news_by_source.get(item.source, 0) + 1
 
     active_sources = [source for source, url in feeds.items() if url]
+    market_success_count = total - len(failed)
+    market_success_rate = round(market_success_count / total, 3) if total else 0
+    low_confidence = market_success_rate < LOW_CONFIDENCE_MARKET_SUCCESS_RATE
     return {
-        "market_success_count": total - len(failed),
+        "market_success_count": market_success_count,
         "market_total_count": total,
-        "market_success_rate": round((total - len(failed)) / total, 3) if total else 0,
+        "market_success_rate": market_success_rate,
+        "low_confidence": low_confidence,
+        "low_confidence_reason": (
+            "market_success_rate_below_threshold"
+            if low_confidence
+            else None
+        ),
+        "market_success_rate_threshold": LOW_CONFIDENCE_MARKET_SUCCESS_RATE,
         "failed_market_symbols": [
             {"symbol": item.symbol, "label": item.label, "error": item.error or "missing change_pct"}
             for item in failed
@@ -957,9 +1117,15 @@ def _compose_markdown(report: dict) -> str:
         "",
         f"- 생성시각: {report['generated_at_kst']}",
         f"- 뉴스 기준: 최근 {report['news_window_hours']}시간",
-        "",
-        "## 핵심 요약",
     ]
+    if report.get("low_confidence"):
+        detail = report.get("low_confidence_detail") or "시장 데이터 수집 성공률이 낮습니다."
+        lines.extend([
+            "",
+            f"> ⚠️ 데이터 신뢰도 경고: {detail} 추천 후보는 표시하지 않습니다.",
+        ])
+
+    lines.extend(["", "## 핵심 요약"])
     lines.extend(f"- {item}" for item in report["summary"])
 
     quality = report.get("data_quality") or {}
@@ -970,6 +1136,7 @@ def _compose_markdown(report: dict) -> str:
             (
                 f"- 시장 데이터: {quality.get('market_success_count', 0)}/"
                 f"{quality.get('market_total_count', 0)} 성공"
+                f" (성공률 {quality.get('market_success_rate', 0):.1%})"
             ),
             (
                 f"- 뉴스: {quality.get('news_count', 0)}건 / "
@@ -982,16 +1149,22 @@ def _compose_markdown(report: dict) -> str:
             lines.append(f"- 수집 실패: {failed_text}")
 
     lines.extend(["", "## 상승 가능 후보"])
-    for item in report["recommendations"]["up"]:
-        reason = "; ".join(item["reasons"])
-        risk = f" / 리스크: {'; '.join(item['risks'])}" if item["risks"] else ""
-        lines.append(f"- {item['name']}({item['symbol']}) score {item['score']}: {reason}{risk}")
+    if report.get("low_confidence"):
+        lines.append("- 데이터 신뢰도 부족으로 추천을 생성하지 않았습니다.")
+    else:
+        for item in report["recommendations"]["up"]:
+            reason = "; ".join(item["reasons"])
+            risk = f" / 리스크: {'; '.join(item['risks'])}" if item["risks"] else ""
+            lines.append(f"- {item['name']}({item['symbol']}) score {item['score']}: {reason}{risk}")
 
     lines.extend(["", "## 하락 위험 후보"])
-    for item in report["recommendations"]["down"]:
-        reason = "; ".join(item["reasons"])
-        risk = f" / 체크: {'; '.join(item['risks'])}" if item["risks"] else ""
-        lines.append(f"- {item['name']}({item['symbol']}) score {item['score']}: {reason}{risk}")
+    if report.get("low_confidence"):
+        lines.append("- 데이터 신뢰도 부족으로 추천을 생성하지 않았습니다.")
+    else:
+        for item in report["recommendations"]["down"]:
+            reason = "; ".join(item["reasons"])
+            risk = f" / 체크: {'; '.join(item['risks'])}" if item["risks"] else ""
+            lines.append(f"- {item['name']}({item['symbol']}) score {item['score']}: {reason}{risk}")
 
     lines.extend(["", "## 주요 데이터"])
     for move in report["market_data"]:
@@ -1026,6 +1199,10 @@ def _compose_telegram_message(report: dict) -> str:
             f"{quality.get('market_success_count', 0)}/{quality.get('market_total_count', 0)} 성공, "
             f"뉴스 {quality.get('news_count', 0)}건"
         )
+
+    if report.get("low_confidence"):
+        lines.append("")
+        lines.append(report.get("low_confidence_detail") or "데이터 신뢰도 부족")
 
     rec_up = (report.get("recommendations") or {}).get("up") or []
     rec_down = (report.get("recommendations") or {}).get("down") or []
@@ -1093,6 +1270,15 @@ async def send_telegram_message(text: str, config: Optional[TelegramConfig] = No
         return {"ok": False, "detail": str(exc)}
 
 
+async def send_report_telegram(report: dict) -> dict:
+    """보고서 신뢰도를 확인한 뒤 텔레그램 전송"""
+    if report.get("low_confidence"):
+        detail = report.get("low_confidence_detail") or "low_confidence"
+        logger.warning("telegram send skipped: %s", detail)
+        return {"ok": False, "detail": f"skipped: {detail}"}
+    return await send_telegram_message(_compose_telegram_message(report))
+
+
 # ============================================================================
 # 파일 저장 함수
 # ============================================================================
@@ -1150,6 +1336,126 @@ async def save_us_close_report(report: dict, output_dir: Optional[str] = None) -
 
 
 # ============================================================================
+# 추천 피드백 함수
+# ============================================================================
+
+
+def _load_json_file(path: str) -> dict:
+    """JSON 파일 로드"""
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _extract_realized_return_pct(value: object) -> Optional[float]:
+    """실현 수익률 입력에서 pct 값을 추출"""
+    if isinstance(value, (int, float)):
+        return float(value)
+    if not isinstance(value, dict):
+        return None
+
+    for key in ("return_pct", "change_pct", "pct", "return"):
+        if key in value and value[key] is not None:
+            return float(value[key])
+
+    close = value.get("close")
+    prev_close = (
+        value.get("prev_close")
+        or value.get("previous_close")
+        or value.get("entry_close")
+    )
+    if close is None or not prev_close:
+        return None
+    return round((float(close) / float(prev_close) - 1) * 100, 3)
+
+
+def _normalize_realized_returns(payload: dict) -> dict[str, float]:
+    """실현 수익률 JSON을 symbol -> return_pct 형태로 정규화"""
+    source = payload.get("returns") or payload.get("realized_returns") or payload
+    returns: dict[str, float] = {}
+    for symbol, value in source.items():
+        return_pct = _extract_realized_return_pct(value)
+        if return_pct is not None and math.isfinite(return_pct):
+            returns[str(symbol)] = round(return_pct, 3)
+    return returns
+
+
+def evaluate_recommendation_feedback(
+    report: dict,
+    realized_returns: dict[str, float],
+) -> dict:
+    """추천 방향과 다음 거래일 실현 수익률을 비교해 적중률 계산"""
+    recommendations = report.get("recommendations") or {}
+    entries = []
+    for bucket, expected_direction in (("up", "up"), ("down", "down")):
+        for item in recommendations.get(bucket) or []:
+            symbol = str(item.get("symbol", ""))
+            if not symbol or symbol not in realized_returns:
+                continue
+            return_pct = realized_returns[symbol]
+            hit = return_pct > 0 if expected_direction == "up" else return_pct < 0
+            entries.append({
+                "symbol": symbol,
+                "name": item.get("name"),
+                "direction": expected_direction,
+                "score": item.get("score"),
+                "return_pct": return_pct,
+                "hit": hit,
+            })
+
+    missed_symbols = [
+        str(item.get("symbol", ""))
+        for bucket in ("up", "down")
+        for item in recommendations.get(bucket) or []
+        if str(item.get("symbol", "")) not in realized_returns
+    ]
+    hit_count = sum(1 for item in entries if item["hit"])
+    total = len(entries)
+    by_direction = {}
+    for direction in ("up", "down"):
+        subset = [item for item in entries if item["direction"] == direction]
+        direction_hits = sum(1 for item in subset if item["hit"])
+        by_direction[direction] = {
+            "evaluated_count": len(subset),
+            "hit_count": direction_hits,
+            "hit_rate": round(direction_hits / len(subset), 3) if subset else None,
+        }
+
+    return {
+        "evaluated_at_kst": datetime.now(KST).isoformat(timespec="seconds"),
+        "report_generated_at_kst": report.get("generated_at_kst"),
+        "low_confidence": bool(report.get("low_confidence")),
+        "evaluated_count": total,
+        "hit_count": hit_count,
+        "hit_rate": round(hit_count / total, 3) if total else None,
+        "by_direction": by_direction,
+        "missed_symbols": [symbol for symbol in missed_symbols if symbol],
+        "entries": entries,
+    }
+
+
+def append_feedback_log(feedback: dict, output_path: Optional[str] = None) -> str:
+    """피드백 결과를 JSONL로 누적 저장"""
+    path = output_path or os.path.join(_default_output_dir(), "us-close-feedback.jsonl")
+    _ensure_output_dir(os.path.dirname(path))
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(feedback, ensure_ascii=False) + "\n")
+    return path
+
+
+def run_recommendation_feedback(
+    report_path: str,
+    realized_returns_path: str,
+    output_path: Optional[str] = None,
+) -> dict:
+    """저장된 보고서와 실현 수익률 파일로 적중률 피드백 실행"""
+    report = _load_json_file(report_path)
+    realized_returns = _normalize_realized_returns(_load_json_file(realized_returns_path))
+    feedback = evaluate_recommendation_feedback(report, realized_returns)
+    feedback["feedback_log"] = append_feedback_log(feedback, output_path)
+    return feedback
+
+
+# ============================================================================
 # 메인 진입점
 # ============================================================================
 
@@ -1170,7 +1476,7 @@ async def run_us_close_job(
     )
     report = await save_us_close_report(report, output_dir=output_dir)
     if telegram:
-        result = await send_telegram_message(_compose_telegram_message(report))
+        result = await send_report_telegram(report)
         report["telegram_sent"] = result.get("ok", False)
         report["telegram_detail"] = result.get("detail")
     return report
@@ -1188,7 +1494,7 @@ async def send_latest_us_close_telegram(
         news_per_source=news_per_source,
         config=config,
     )
-    result = await send_telegram_message(_compose_telegram_message(report))
+    result = await send_report_telegram(report)
     report["telegram_sent"] = result.get("ok", False)
     report["telegram_detail"] = result.get("detail")
     return report
@@ -1263,8 +1569,27 @@ async def build_us_close_report(
         news = await news_task
 
     moves = {item.key: item for item in market_results}
-    signal = _news_signal(news)
-    recs = _build_recommendations(moves, signal, config.korea_candidates)
+    signal = _news_signal(
+        news,
+        scoring=config.scoring,
+        positive_words=config.positive_words,
+        negative_words=config.negative_words,
+    )
+    data_quality = _data_quality(market_results, news, config.news_feeds)
+    low_confidence = bool(data_quality.get("low_confidence"))
+    low_confidence_detail = ""
+    if low_confidence:
+        low_confidence_detail = (
+            "시장 데이터 성공률 "
+            f"{data_quality.get('market_success_rate', 0):.1%}가 "
+            f"임계값 {data_quality.get('market_success_rate_threshold', 0):.0%} 미만입니다."
+        )
+
+    recs = (
+        []
+        if low_confidence
+        else _build_recommendations(moves, signal, config.korea_candidates, config.scoring)
+    )
 
     up = [asdict(item) for item in recs if item.score > 0][:8]
     down = [asdict(item) for item in sorted(recs, key=lambda item: item.score) if item.score < 0][:8]
@@ -1272,9 +1597,13 @@ async def build_us_close_report(
     report = {
         "generated_at_kst": datetime.now(KST).isoformat(timespec="seconds"),
         "news_window_hours": news_window_hours,
-        "summary": _market_summary(moves),
+        "low_confidence": low_confidence,
+        "low_confidence_detail": low_confidence_detail or None,
+        "config_source": config.source_path,
+        "scoring_config": config.scoring,
+        "summary": _market_summary(moves, config.scoring),
         "news_signal": signal,
-        "data_quality": _data_quality(market_results, news, config.news_feeds),
+        "data_quality": data_quality,
         "market_data": [asdict(item) for item in market_results],
         "news": [asdict(item) for item in news],
         "recommendations": {"up": up, "down": down},
@@ -1303,6 +1632,10 @@ def main() -> None:
     )
     parser.add_argument("--output-dir", default=os.getenv("US_CLOSE_OUTPUT_DIR"))
     parser.add_argument("--telegram", action="store_true", help="텔레그램으로도 전송")
+    parser.add_argument("--config", default=os.getenv("US_CLOSE_CONFIG_PATH"), help="JSON 설정 파일 경로")
+    parser.add_argument("--feedback-file", help="실현 수익률 JSON 파일로 추천 적중률 계산")
+    parser.add_argument("--feedback-report", help="피드백 대상 리포트 JSON 경로")
+    parser.add_argument("--feedback-log", help="피드백 JSONL 저장 경로")
     args = parser.parse_args()
 
     # 로깅 설정
@@ -1310,6 +1643,20 @@ def main() -> None:
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
+    config = AppConfig.load_default(args.config)
+
+    if args.feedback_file:
+        report_path = args.feedback_report or os.path.join(
+            args.output_dir or _default_output_dir(),
+            "latest.json",
+        )
+        feedback = run_recommendation_feedback(
+            report_path=report_path,
+            realized_returns_path=args.feedback_file,
+            output_path=args.feedback_log,
+        )
+        print(json.dumps(feedback, ensure_ascii=False, indent=2))
+        return
 
     if args.schedule:
         asyncio.run(
@@ -1320,12 +1667,13 @@ def main() -> None:
                 news_per_source=args.news_per_source,
                 output_dir=args.output_dir,
                 telegram=args.telegram,
+                config=config,
             )
         )
         return
 
     report = asyncio.run(
-        build_us_close_report(args.hours, args.news_per_source)
+        build_us_close_report(args.hours, args.news_per_source, config=config)
     )
     content = (
         json.dumps(report, ensure_ascii=False, indent=2)
@@ -1340,7 +1688,7 @@ def main() -> None:
         asyncio.run(save_us_close_report(report, output_dir=args.output_dir))
 
     if args.telegram:
-        asyncio.run(send_telegram_message(_compose_telegram_message(report)))
+        asyncio.run(send_report_telegram(report))
 
     print(content)
 
