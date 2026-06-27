@@ -74,6 +74,7 @@ MAJOR_INDEX_THRESHOLD = 0.4
 # 뉴스/점수 임계값
 SIGNIFICANT_MOVE_PCT = 0.5
 SIGNIFICANT_MOVE_THRESHOLD = SIGNIFICANT_MOVE_PCT
+SIGNIFICANT_YIELD_MOVE_BP = 5.0
 NEWS_SCORE_NEWS_BOOST = 0.4
 AI_CHIP_THEME = "AI/반도체"
 NEWS_TITLE_WEIGHT = 2.0
@@ -98,6 +99,7 @@ DEFAULT_SCORING_CONFIG = {
     "wti_weakness_threshold": WTI_WEAKNESS_THRESHOLD,
     "major_index_threshold": MAJOR_INDEX_THRESHOLD,
     "significant_move_threshold": SIGNIFICANT_MOVE_THRESHOLD,
+    "significant_yield_move_bp": SIGNIFICANT_YIELD_MOVE_BP,
     "news_score_news_boost": NEWS_SCORE_NEWS_BOOST,
     "news_title_weight": NEWS_TITLE_WEIGHT,
     "news_summary_weight": NEWS_SUMMARY_WEIGHT,
@@ -945,12 +947,32 @@ def _add_universal_risks(
     tags = set(candidate["tags"])
 
     nasdaq_pct = _get_pct_safe(moves, "nasdaq") or 0
-    if nasdaq_pct < _scoring_value(scoring, "nasdaq_crash_threshold") and "growth" in tags:
+    if (
+        nasdaq_pct < _scoring_value(scoring, "nasdaq_crash_threshold")
+        and "growth" in tags
+    ):
         risks.append("나스닥 약세 시 성장주 밸류에이션 부담")
 
     yield_bp = _get_bp_safe(moves, "us10y") or 0
     if yield_bp > _scoring_value(scoring, "yield_spike_threshold_bp"):
         risks.append(f"미 10년물 금리 급등({_fmt_bp(yield_bp)})")
+
+
+def _is_significant_driver_move(
+    key: str,
+    move: MarketMove,
+    scoring: Optional[dict] = None,
+) -> bool:
+    """드라이버 변동이 추천 사유로 표시할 만큼 의미 있는지 판정"""
+    if key == "us10y":
+        return abs(move.change_bp or 0.0) >= _scoring_value(
+            scoring,
+            "significant_yield_move_bp",
+        )
+    return abs(move.change_pct or 0.0) >= _scoring_value(
+        scoring,
+        "significant_move_threshold",
+    )
 
 
 def _build_recommendations(
@@ -980,7 +1002,7 @@ def _build_recommendations(
                 else _score_from_pct(pct, scoring=scoring)
             )
             driver_scores.append(score_unit * weight)
-            if abs(pct) >= _scoring_value(scoring, "significant_move_threshold"):
+            if _is_significant_driver_move(key, move, scoring):
                 detail = _fmt_bp(move.change_bp) if key == "us10y" else _fmt_pct(pct)
                 reasons.append(f"{move.label} {detail}")
 
@@ -1436,7 +1458,9 @@ def evaluate_recommendation_feedback(
 def append_feedback_log(feedback: dict, output_path: Optional[str] = None) -> str:
     """피드백 결과를 JSONL로 누적 저장"""
     path = output_path or os.path.join(_default_output_dir(), "us-close-feedback.jsonl")
-    _ensure_output_dir(os.path.dirname(path))
+    directory = os.path.dirname(path)
+    if directory:
+        _ensure_output_dir(directory)
     with open(path, "a", encoding="utf-8") as f:
         f.write(json.dumps(feedback, ensure_ascii=False) + "\n")
     return path

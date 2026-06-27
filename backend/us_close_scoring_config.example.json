@@ -17,6 +17,7 @@
     "wti_weakness_threshold": -1.0,
     "major_index_threshold": 0.4,
     "significant_move_threshold": 0.5,
+    "significant_yield_move_bp": 5.0,
     "news_score_news_boost": 0.4,
     "news_title_weight": 2.0,
     "news_summary_weight": 1.0,
