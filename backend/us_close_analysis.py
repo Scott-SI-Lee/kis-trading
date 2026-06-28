@@ -22,11 +22,12 @@ import math
 import os
 import re
 from dataclasses import dataclass, asdict, field
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from typing import Optional
 from urllib.parse import quote
 from xml.etree import ElementTree
+from zoneinfo import ZoneInfo
 
 import aiohttp
 
@@ -34,6 +35,7 @@ logger = logging.getLogger(__name__)
 
 KST = timezone(timedelta(hours=9))
 UTC = timezone.utc
+US_EASTERN = ZoneInfo("America/New_York")
 
 # ============================================================================
 # 설정 상수
@@ -47,6 +49,9 @@ YAHOO_RETRY_ATTEMPTS = 2
 YAHOO_RETRY_BACKOFF_SECONDS = 0.5
 YAHOO_TRANSIENT_HTTP_STATUSES = {429, 500, 502, 503, 504}
 LOW_CONFIDENCE_MARKET_SUCCESS_RATE = 0.5
+FRESH_MARKET_SUCCESS_RATE = 0.5
+US_MARKET_CLOSE_HOUR_ET = 16
+US_MARKET_CLOSE_GRACE_MINUTES = 45
 
 # 점수 계산 설정
 SCORE_BOUNDS = (-4.0, 4.0)
@@ -129,6 +134,7 @@ class MarketMove:
     fetched_at: str
     error: Optional[str] = None
     change_bp: Optional[float] = None
+    regular_market_time: Optional[str] = None
 
 
 @dataclass
@@ -514,6 +520,155 @@ def _basis_point_change(price: Optional[float], prev_close: Optional[float]) -> 
     return round((float(price) - float(prev_close)) * 100, 1)
 
 
+def _timestamp_to_utc_iso(value: Optional[object]) -> Optional[str]:
+    """Unix timestamp를 UTC ISO 문자열로 변환"""
+    if value is None:
+        return None
+    try:
+        return datetime.fromtimestamp(float(value), UTC).isoformat()
+    except (TypeError, ValueError, OSError):
+        return None
+
+
+def _parse_datetime(value: Optional[str]) -> Optional[datetime]:
+    """ISO datetime 문자열을 timezone-aware datetime으로 변환"""
+    if not value:
+        return None
+    try:
+        normalized = value.replace("Z", "+00:00")
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed
+
+
+def _nth_weekday(year: int, month: int, weekday: int, n: int) -> date:
+    """해당 월 n번째 weekday 날짜를 반환. weekday는 Monday=0."""
+    current = datetime(year, month, 1).date()
+    offset = (weekday - current.weekday()) % 7
+    return current + timedelta(days=offset + (n - 1) * 7)
+
+
+def _last_weekday(year: int, month: int, weekday: int) -> date:
+    """해당 월 마지막 weekday 날짜를 반환. weekday는 Monday=0."""
+    if month == 12:
+        current = datetime(year + 1, 1, 1).date() - timedelta(days=1)
+    else:
+        current = datetime(year, month + 1, 1).date() - timedelta(days=1)
+    return current - timedelta(days=(current.weekday() - weekday) % 7)
+
+
+def _observed_fixed_holiday(year: int, month: int, day: int) -> date:
+    """미국 고정 공휴일의 대체 휴일 날짜를 반환"""
+    holiday = datetime(year, month, day).date()
+    if holiday.weekday() == 5:
+        return holiday - timedelta(days=1)
+    if holiday.weekday() == 6:
+        return holiday + timedelta(days=1)
+    return holiday
+
+
+def _easter_date(year: int) -> date:
+    """Gregorian calendar Easter Sunday 계산"""
+    a = year % 19
+    b = year // 100
+    c = year % 100
+    d = b // 4
+    e = b % 4
+    f = (b + 8) // 25
+    g = (b - f + 1) // 3
+    h = (19 * a + b - d - g + 15) % 30
+    i = c // 4
+    k = c % 4
+    l = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * l) // 451
+    month = (h + l - 7 * m + 114) // 31
+    day = ((h + l - 7 * m + 114) % 31) + 1
+    return datetime(year, month, day).date()
+
+
+def _us_market_holidays(year: int) -> set[date]:
+    """NYSE 주요 휴장일을 대략 계산"""
+    return {
+        _observed_fixed_holiday(year, 1, 1),
+        _nth_weekday(year, 1, 0, 3),   # Martin Luther King Jr. Day
+        _nth_weekday(year, 2, 0, 3),   # Presidents' Day
+        _easter_date(year) - timedelta(days=2),  # Good Friday
+        _last_weekday(year, 5, 0),     # Memorial Day
+        _observed_fixed_holiday(year, 6, 19),
+        _observed_fixed_holiday(year, 7, 4),
+        _nth_weekday(year, 9, 0, 1),   # Labor Day
+        _nth_weekday(year, 11, 3, 4),  # Thanksgiving
+        _observed_fixed_holiday(year, 12, 25),
+    }
+
+
+def _is_us_market_trading_day(day: date) -> bool:
+    """주말과 주요 미국 증시 휴장일을 제외한 거래일 여부"""
+    if day.weekday() >= 5:
+        return False
+    return day not in _us_market_holidays(day.year)
+
+
+def _previous_us_market_trading_day(day: date) -> date:
+    """주어진 날짜 이전의 가장 가까운 미국 거래일"""
+    current = day - timedelta(days=1)
+    while not _is_us_market_trading_day(current):
+        current -= timedelta(days=1)
+    return current
+
+
+def _last_completed_us_session_date(now: Optional[datetime] = None) -> date:
+    """현재 시각 기준 마지막으로 완료된 미국 정규장 세션 날짜"""
+    now = now or datetime.now(UTC)
+    now_et = now.astimezone(US_EASTERN)
+    market_close = now_et.replace(
+        hour=US_MARKET_CLOSE_HOUR_ET,
+        minute=0,
+        second=0,
+        microsecond=0,
+    )
+    if _is_us_market_trading_day(now_et.date()) and now_et >= market_close:
+        return now_et.date()
+    return _previous_us_market_trading_day(now_et.date())
+
+
+def _session_freshness_window_utc(
+    session_date: date,
+) -> tuple[datetime, datetime]:
+    """정규장 데이터로 인정할 ET 세션 범위를 UTC로 반환"""
+    start_et = datetime(
+        session_date.year,
+        session_date.month,
+        session_date.day,
+        9,
+        30,
+        tzinfo=US_EASTERN,
+    )
+    end_et = datetime(
+        session_date.year,
+        session_date.month,
+        session_date.day,
+        US_MARKET_CLOSE_HOUR_ET,
+        US_MARKET_CLOSE_GRACE_MINUTES,
+        tzinfo=US_EASTERN,
+    )
+    return start_et.astimezone(UTC), end_et.astimezone(UTC)
+
+
+def _requires_regular_session_freshness(move: MarketMove) -> bool:
+    """정규장 마감 신선도 검사를 적용할 대상인지 판정"""
+    return move.group in {"major_index", "sector", "us_stock"}
+
+
+def _is_scheduled_run_on_trading_session(now_kst: datetime) -> bool:
+    """스케줄 실행 시각의 미국 현지일에 보고할 정규장 세션이 있는지 판정"""
+    now_et = now_kst.astimezone(US_EASTERN)
+    return _is_us_market_trading_day(now_et.date())
+
+
 # ============================================================================
 # 클라이언트 클래스
 # ============================================================================
@@ -630,6 +785,7 @@ class YahooMarketDataClient:
             if instrument.key == "us10y"
             else None
         )
+        regular_market_time = _timestamp_to_utc_iso(meta.get("regularMarketTime"))
 
         return MarketMove(
             key=instrument.key,
@@ -641,6 +797,7 @@ class YahooMarketDataClient:
             change_pct=change_pct,
             fetched_at=datetime.now(UTC).isoformat(),
             change_bp=change_bp,
+            regular_market_time=regular_market_time,
         )
 
     @staticmethod
@@ -1093,10 +1250,12 @@ def _data_quality(
     market_results: list[MarketMove],
     news: list[NewsItem],
     feeds: dict[str, str],
+    now: Optional[datetime] = None,
 ) -> dict:
     """보고서 신뢰도 점검용 메타데이터 생성"""
     total = len(market_results)
     failed = [item for item in market_results if item.error or item.change_pct is None]
+    successful = [item for item in market_results if item not in failed]
     news_by_source: dict[str, int] = {}
     for item in news:
         news_by_source[item.source] = news_by_source.get(item.source, 0) + 1
@@ -1104,21 +1263,69 @@ def _data_quality(
     active_sources = [source for source, url in feeds.items() if url]
     market_success_count = total - len(failed)
     market_success_rate = round(market_success_count / total, 3) if total else 0
-    low_confidence = market_success_rate < LOW_CONFIDENCE_MARKET_SUCCESS_RATE
+    expected_session_date = _last_completed_us_session_date(now)
+    freshness_start, freshness_end = _session_freshness_window_utc(expected_session_date)
+    freshness_checked = [
+        item for item in successful if _requires_regular_session_freshness(item)
+    ]
+    missing_regular_market_time = []
+    stale_market_symbols = []
+    fresh_market_symbols = []
+    for item in freshness_checked:
+        regular_market_time = _parse_datetime(item.regular_market_time)
+        if regular_market_time is None:
+            missing_regular_market_time.append(item)
+            continue
+        regular_market_time = regular_market_time.astimezone(UTC)
+        if freshness_start <= regular_market_time <= freshness_end:
+            fresh_market_symbols.append(item)
+        else:
+            stale_market_symbols.append(item)
+
+    freshness_checked_count = len(freshness_checked)
+    fresh_market_success_count = len(fresh_market_symbols)
+    fresh_market_success_rate = (
+        round(fresh_market_success_count / freshness_checked_count, 3)
+        if freshness_checked_count
+        else 1.0
+    )
+    stale_data = fresh_market_success_rate < FRESH_MARKET_SUCCESS_RATE
+    low_confidence_reasons = []
+    if market_success_rate < LOW_CONFIDENCE_MARKET_SUCCESS_RATE:
+        low_confidence_reasons.append("market_success_rate_below_threshold")
+    if stale_data:
+        low_confidence_reasons.append("market_data_stale")
+    low_confidence = bool(low_confidence_reasons)
     return {
         "market_success_count": market_success_count,
         "market_total_count": total,
         "market_success_rate": market_success_rate,
         "low_confidence": low_confidence,
-        "low_confidence_reason": (
-            "market_success_rate_below_threshold"
-            if low_confidence
-            else None
-        ),
+        "low_confidence_reason": ",".join(low_confidence_reasons) or None,
         "market_success_rate_threshold": LOW_CONFIDENCE_MARKET_SUCCESS_RATE,
         "failed_market_symbols": [
             {"symbol": item.symbol, "label": item.label, "error": item.error or "missing change_pct"}
             for item in failed
+        ],
+        "expected_us_session_date": expected_session_date.isoformat(),
+        "freshness_window_start_utc": freshness_start.isoformat(),
+        "freshness_window_end_utc": freshness_end.isoformat(),
+        "fresh_market_success_count": fresh_market_success_count,
+        "freshness_checked_count": freshness_checked_count,
+        "fresh_market_success_rate": fresh_market_success_rate,
+        "fresh_market_success_rate_threshold": FRESH_MARKET_SUCCESS_RATE,
+        "stale_data": stale_data,
+        "stale_market_symbols": [
+            {
+                "symbol": item.symbol,
+                "label": item.label,
+                "regular_market_time": item.regular_market_time,
+            }
+            for item in stale_market_symbols
+        ],
+        "missing_regular_market_time_symbols": [
+            {"symbol": item.symbol, "label": item.label}
+            for item in missing_regular_market_time
         ],
         "news_count": len(news),
         "news_source_count": len(news_by_source),
@@ -1169,6 +1376,24 @@ def _compose_markdown(report: dict) -> str:
         if failed:
             failed_text = ", ".join(f"{item['label']}({item['error']})" for item in failed[:5])
             lines.append(f"- 수집 실패: {failed_text}")
+        lines.append(
+            (
+                f"- 데이터 신선도: {quality.get('fresh_market_success_count', 0)}/"
+                f"{quality.get('freshness_checked_count', 0)} fresh"
+                f" (기준 미국 세션 {quality.get('expected_us_session_date')})"
+            )
+        )
+        stale = quality.get("stale_market_symbols") or []
+        if stale:
+            stale_text = ", ".join(
+                f"{item['label']}({item.get('regular_market_time') or 'missing time'})"
+                for item in stale[:5]
+            )
+            lines.append(f"- 오래된 시장 데이터: {stale_text}")
+        missing_time = quality.get("missing_regular_market_time_symbols") or []
+        if missing_time:
+            missing_text = ", ".join(item["label"] for item in missing_time[:5])
+            lines.append(f"- 거래시각 메타 누락: {missing_text}")
 
     lines.extend(["", "## 상승 가능 후보"])
     if report.get("low_confidence"):
@@ -1221,6 +1446,12 @@ def _compose_telegram_message(report: dict) -> str:
             f"{quality.get('market_success_count', 0)}/{quality.get('market_total_count', 0)} 성공, "
             f"뉴스 {quality.get('news_count', 0)}건"
         )
+        if quality.get("stale_data"):
+            lines.append(
+                "시장 데이터 신선도 경고: "
+                f"{quality.get('fresh_market_success_count', 0)}/"
+                f"{quality.get('freshness_checked_count', 0)} fresh"
+            )
 
     if report.get("low_confidence"):
         lines.append("")
@@ -1532,6 +1763,7 @@ async def schedule_us_close_job(
     output_dir: Optional[str] = None,
     telegram: bool = False,
     config: Optional[AppConfig] = None,
+    skip_non_trading_days: bool = True,
 ) -> None:
     """US Close 분석 정기 실행 스케줄"""
     if not (0 <= hour_kst <= 23):
@@ -1556,6 +1788,13 @@ async def schedule_us_close_job(
         await asyncio.sleep(sleep_seconds)
 
         try:
+            if skip_non_trading_days and not _is_scheduled_run_on_trading_session(next_run):
+                next_run_et = next_run.astimezone(US_EASTERN)
+                logger.info(
+                    "Skipping scheduled US close job for non-trading US date %s",
+                    next_run_et.date().isoformat(),
+                )
+                continue
             logger.info("Starting scheduled US close job")
             report = await run_us_close_job(
                 news_window_hours=news_window_hours,
@@ -1603,11 +1842,21 @@ async def build_us_close_report(
     low_confidence = bool(data_quality.get("low_confidence"))
     low_confidence_detail = ""
     if low_confidence:
-        low_confidence_detail = (
-            "시장 데이터 성공률 "
-            f"{data_quality.get('market_success_rate', 0):.1%}가 "
-            f"임계값 {data_quality.get('market_success_rate_threshold', 0):.0%} 미만입니다."
-        )
+        detail_parts = []
+        if "market_success_rate_below_threshold" in str(data_quality.get("low_confidence_reason")):
+            detail_parts.append(
+                "시장 데이터 성공률 "
+                f"{data_quality.get('market_success_rate', 0):.1%}가 "
+                f"임계값 {data_quality.get('market_success_rate_threshold', 0):.0%} 미만입니다."
+            )
+        if "market_data_stale" in str(data_quality.get("low_confidence_reason")):
+            detail_parts.append(
+                "시장 데이터 신선도 "
+                f"{data_quality.get('fresh_market_success_rate', 0):.1%}가 "
+                f"임계값 {data_quality.get('fresh_market_success_rate_threshold', 0):.0%} 미만입니다"
+                f" (기준 미국 세션 {data_quality.get('expected_us_session_date')})."
+            )
+        low_confidence_detail = " ".join(detail_parts)
 
     recs = (
         []
@@ -1656,6 +1905,11 @@ def main() -> None:
     )
     parser.add_argument("--output-dir", default=os.getenv("US_CLOSE_OUTPUT_DIR"))
     parser.add_argument("--telegram", action="store_true", help="텔레그램으로도 전송")
+    parser.add_argument(
+        "--no-skip-non-trading-days",
+        action="store_true",
+        help="스케줄 실행 시 주말/미국 휴장일 추정 스킵을 비활성화",
+    )
     parser.add_argument("--config", default=os.getenv("US_CLOSE_CONFIG_PATH"), help="JSON 설정 파일 경로")
     parser.add_argument("--feedback-file", help="실현 수익률 JSON 파일로 추천 적중률 계산")
     parser.add_argument("--feedback-report", help="피드백 대상 리포트 JSON 경로")
@@ -1692,6 +1946,7 @@ def main() -> None:
                 output_dir=args.output_dir,
                 telegram=args.telegram,
                 config=config,
+                skip_non_trading_days=not args.no_skip_non_trading_days,
             )
         )
         return

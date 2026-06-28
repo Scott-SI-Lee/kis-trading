@@ -25,7 +25,7 @@
 - **영향 함수**: `build_us_close_report`, `run_us_close_job`, `_compose_markdown`
 - **완료 기준**: 인위적으로 전체 실패를 유도했을 때 추천이 비거나 저신뢰로 표시되고 텔레그램이 전송되지 않음.
 
-### Task 3. 시장 개장일·데이터 신선도 검증 ⬜
+### Task 3. 시장 개장일·데이터 신선도 검증 ✅
 - **문제**: 스케줄러가 KST 고정 시각에 실행되며 주말·미국 공휴일을 구분하지 않음 ([us_close_analysis.py:1214-1226](../backend/us_close_analysis.py#L1214-L1226)). 휴장일 다음 아침엔 전일과 동일한 stale 데이터로 리포트가 생성됨.
 - **개선안**:
   - Yahoo `meta.regularMarketTime`을 `MarketMove`에 보존
