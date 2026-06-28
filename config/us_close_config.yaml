@@ -1,2 +1,50 @@
-# Task 4: 테스트 설정 파일
-created_at: 2026-06-28T02:12:11.923751
+# 미국 마감 분석 가중치 설정
+# Task 4: 휴리스틱 가중치 외부화
+
+risk_penalties:
+  us10y_surge_threshold_pct: 1.0
+  us10y_surge_penalty: -0.5
+  dxy_strength_threshold_pct: 0.4
+  dxy_strength_penalty: -0.4
+  negative_news_penalty_multiplier: 0.08
+  negative_news_penalty_cap: -0.8
+  positive_news_bonus_multiplier: 0.06
+  positive_news_bonus_cap: 0.6
+
+sector_adjustments:
+  semiconductor:
+    sox_multiplier: 0.7
+    ai_news_bonus: 0.4
+    ai_news_theme: "AI/반도체"
+  growth:
+    us10y_penalty_multiplier: 0.25
+    dxy_strength_additional_risk: "달러 강세는 외국인 수급 부담"
+  financial:
+    us10y_bonus_multiplier: 0.25
+    rate_collapse_risk: "금리 급락 시 은행 순이자마진 기대 약화"
+  energy:
+    wti_multiplier: 0.8
+    oil_weakness_threshold_pct: -1.0
+    oil_weakness_risk: "유가 약세는 정유/에너지 투자심리 부담"
+  healthcare:
+    defensive_support_score: 0.5
+    defensive_support_reason: "방어주 성격으로 하락장 상대 강도 기대"
+
+global_thresholds:
+  nasdaq_weakness_threshold_pct: -1.0
+  nasdaq_weakness_risk: "나스닥 약세 시 성장주 밸류에이션 부담"
+  us10y_spike_threshold_pct: 2.0
+  us10y_spike_risk: "미 10년물 금리 급등"
+  significant_move_threshold_pct: 0.5
+
+report_quality:
+  data_quality_threshold: 0.5
+  skip_telegram_if_low_quality: true
+
+backtest_logging:
+  enabled: true
+  log_file: "reports/us_close_backtest.log"
+  evaluation:
+    up_recommendation_threshold_pct: 0.5
+    down_recommendation_threshold_pct: -0.5
+    hold_range: [-0.5, 0.5]
