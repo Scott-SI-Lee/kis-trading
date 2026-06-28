@@ -26,6 +26,7 @@ from datetime import date, datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from typing import Optional
 from urllib.parse import quote
+from us_close_config_loader import get_config, BacktestLogger
 from xml.etree import ElementTree
 from zoneinfo import ZoneInfo
 
@@ -1882,6 +1883,25 @@ async def build_us_close_report(
         "recommendations": {"up": up, "down": down},
     }
     report["markdown"] = _compose_markdown(report)
+    
+    # Task 4: 백테스트 로깅
+    backtest_logger = BacktestLogger()
+    if backtest_logger.enabled and (up or down):
+        for item in up + down:
+            direction = item.get("direction", "up")
+            accuracy = backtest_logger.evaluate_recommendation(
+                direction=direction,
+                actual_change_pct=None,
+            )
+            backtest_logger.log_recommendation(
+                symbol=item.get("symbol", ""),
+                name=item.get("name", ""),
+                direction=direction,
+                score=item.get("score", 0),
+                reasons=item.get("reasons", []),
+                actual_change_next_day=None,
+                accuracy=accuracy,
+            )
     return report
 
 
